@@ -786,6 +786,103 @@ class TestPhotosAdmin(Base):
         self.assertIn("/photos/essence-1.jpg?v=", h)
 
 
+class TestSousChemin(Base):
+    """Application servie sous maps.utagawavtt.com/monarbre : le serveur web retire le préfixe, l'application le remet dans ses adresses."""
+
+    def setUp(self):
+        super().setUp()
+        for cle, valeur in (("SESSION_COOKIE_PATH", "/monarbre"),  # ce que fait URL_PREFIX au démarrage
+                            ("APPLICATION_ROOT", "/monarbre")):  # le client de test se place sous le préfixe, comme le navigateur derrière nginx
+            self.addCleanup(app.app.config.__setitem__, cle, app.app.config[cle])
+            app.app.config[cle] = valeur
+        self.addCleanup(os.environ.pop, "APP_URL", None)
+        self.vue = app.app.test_client()
+
+    def html(self, r):
+        return r.get_data(as_text=True)
+
+    def controle(self, nom, page):
+        """Toutes les adresses commençant par / (liens, images, formulaires, scripts) portent le préfixe."""
+        adresses = [a or b for a, b in re.findall(r'(?:href|src|action)="(/[^"]*)"|url: "(/[^"]*)"', page)]
+        self.assertTrue(adresses, nom)
+        for adresse in adresses:
+            self.assertTrue(adresse.startswith("/monarbre/"), (nom, adresse))
+
+    def connexion(self, suite=""):
+        r = self.vue.post("/admin/login" + suite, data=dict(email="admin@test.local", password=MDP))
+        self.assertEqual(r.status_code, 302)
+        return r
+
+    def demande(self):
+        d = self.donnees()
+        d["livret"] = (io.BytesIO(PDF[0]), PDF[1])
+        return self.vue.post("/demande", data=d)
+
+    def test_prefixe_normalise_et_cookie_propre(self):
+        for saisi, attendu in (("", ""), (None, ""), ("monarbre", "/monarbre"), ("/monarbre/", "/monarbre"), ("  /a/b/ ", "/a/b"), ("/", "")):
+            self.assertEqual(app.normaliser_prefixe(saisi), attendu, saisi)
+        self.assertEqual(app.URL_PREFIX, "")  # sans URL_PREFIX, l'application reste à la racine du domaine
+        self.assertEqual(app.app.config["SESSION_COOKIE_NAME"], "monarbre_session")  # ne se mélange pas au cookie « session » d'une autre application
+
+    def test_le_prefixe_s_ajoute_devant_l_application(self):
+        vu = {}
+        app.Prefixe(lambda environ, demarrer: vu.update(environ) or [], "/monarbre")({"SCRIPT_NAME": "", "PATH_INFO": "/admin/"}, None)
+        self.assertEqual((vu["SCRIPT_NAME"], vu["PATH_INFO"]), ("/monarbre", "/admin/"))
+        # de bout en bout, sans aucun réglage du client de test : seul le middleware ajoute le préfixe
+        from werkzeug.test import Client
+        page = Client(app.Prefixe(app.app.wsgi_app, "/monarbre")).get("/").get_data(as_text=True)
+        self.assertIn('href="/monarbre/static/style.css"', page)
+        self.assertIn('action="/monarbre/demande"', page)
+
+    def test_pages_publiques(self):
+        page = self.html(self.vue.get("/"))
+        self.controle("formulaire", page)
+        self.assertIn('url: "/monarbre/api/adresse"', page)  # la saisie assistée de l'adresse appelle le bon chemin
+        self.assertIn('href="/monarbre/static/style.css"', page)
+        self.assertEqual(self.vue.get("/sante").status_code, 200)  # le contrôle de santé du conteneur ne passe pas par le préfixe
+        r = self.demande()
+        self.assertEqual(r.status_code, 302)
+        self.assertTrue(r.headers["Location"].startswith("/monarbre/merci/"), r.headers["Location"])
+        merci = self.vue.get(r.headers["Location"][len("/monarbre"):])  # le serveur web retire le préfixe avant de transmettre
+        self.assertEqual(merci.status_code, 200)
+        self.controle("confirmation", self.html(merci))
+
+    def test_administration(self):
+        self.cree()
+        self.controle("connexion", self.html(self.vue.get("/admin/login")))
+        # page protégée : retour à la connexion, puis à la page demandée, préfixe compris
+        r = self.vue.get("/admin/essences")
+        self.assertEqual(r.status_code, 302)
+        self.assertTrue(r.headers["Location"].startswith("/monarbre/admin/login?next="), r.headers["Location"])
+        r = self.connexion("?next=/admin/essences")
+        self.assertEqual(r.headers["Location"], "/monarbre/admin/essences")
+        self.assertTrue(any("monarbre_session=" in c and "Path=/monarbre" in c for c in r.headers.getlist("Set-Cookie")), r.headers.getlist("Set-Cookie"))
+        self.assertEqual(self.connexion().headers["Location"], "/monarbre/admin/")
+        for chemin in ("/admin/", "/admin/essences", "/admin/photos", "/admin/parametres", "/admin/arbres", "/admin/campagnes",
+                       "/admin/utilisateurs", "/admin/mails", "/admin/mot-de-passe", "/admin/demande/1"):
+            r = self.vue.get(chemin)
+            self.assertEqual(r.status_code, 200, chemin)
+            self.controle(chemin, self.html(r))
+        jeton = re.search(r'name="csrf" value="([0-9a-f]+)"', self.html(self.vue.get("/admin/mot-de-passe"))).group(1)
+        r = self.vue.post("/admin/essences", data=dict(csrf=jeton, nom=""))
+        self.assertEqual((r.status_code, r.headers["Location"]), (302, "/monarbre/admin/essences"))
+        self.assertEqual(self.vue.get("/admin/logout").headers["Location"], "/monarbre/admin/login")
+
+    def test_lien_dans_la_notification_aux_agents(self):
+        def lien(appurl):
+            os.environ.pop("APP_URL", None)
+            if appurl:
+                os.environ["APP_URL"] = appurl
+            self.sql("DELETE FROM mails")
+            self.sql("DELETE FROM parrainages")
+            self.assertEqual(self.demande().status_code, 302)
+            corps = self.un("SELECT corps FROM mails WHERE sujet LIKE 'Nouvelle demande%' ORDER BY id")["corps"]
+            return re.search(r"Ouvrir la demande : (\S+)", corps).group(1)
+        self.assertEqual(lien(None), "http://localhost/monarbre/admin/demande/1")
+        self.assertEqual(lien("https://maps.utagawavtt.com"), "https://maps.utagawavtt.com/monarbre/admin/demande/1")
+        self.assertEqual(lien("https://maps.utagawavtt.com/monarbre/"), "https://maps.utagawavtt.com/monarbre/admin/demande/1")  # pas doublé
+
+
 class TestAuthentification(Base):
     def test_acces_protege(self):
         r = self.pub.get("/admin/")

@@ -60,12 +60,38 @@ app = Flask(__name__)
 app.secret_key = cle_secrete()
 if os.environ.get("TRUST_PROXY", "0") == "1":  # derrière Caddy : vraie adresse IP du visiteur, schéma https
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+
+
+def normaliser_prefixe(valeur):
+    """« monarbre », « /monarbre » ou « /monarbre/ » deviennent « /monarbre » ; vide : pas de préfixe."""
+    morceau = (valeur or "").strip().strip("/")
+    return "/" + morceau if morceau else ""
+
+
+class Prefixe:
+    """Application servie sous un sous-chemin d'un domaine partagé (par exemple maps.utagawavtt.com/monarbre).
+    Le serveur web retire le préfixe avant de transmettre la requête ; l'application le remet dans toutes les adresses
+    qu'elle fabrique (liens, formulaires, redirections)."""
+
+    def __init__(self, wsgi, prefixe):
+        self.wsgi, self.prefixe = wsgi, prefixe
+
+    def __call__(self, environ, start_response):
+        environ["SCRIPT_NAME"] = self.prefixe + environ.get("SCRIPT_NAME", "")
+        return self.wsgi(environ, start_response)
+
+
+URL_PREFIX = normaliser_prefixe(os.environ.get("URL_PREFIX"))
+if URL_PREFIX:
+    app.wsgi_app = Prefixe(app.wsgi_app, URL_PREFIX)
 LIVRETS = os.path.join(DATA, "livrets")
 os.makedirs(LIVRETS, exist_ok=True)
 TAILLE_MAX = 5 * 1024 * 1024
 app.config.update(MAX_CONTENT_LENGTH=TAILLE_MAX + 512 * 1024, PERMANENT_SESSION_LIFETIME=timedelta(hours=8))
 app.config.update(SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE="Lax",
-                  SESSION_COOKIE_SECURE=os.environ.get("HTTPS", "0") == "1")
+                  SESSION_COOKIE_SECURE=os.environ.get("HTTPS", "0") == "1",
+                  # nom et chemin propres : sur un domaine partagé avec d'autres applications, le cookie ne se mélange pas aux leurs
+                  SESSION_COOKIE_NAME="monarbre_session", SESSION_COOKIE_PATH=URL_PREFIX or "/")
 
 MAIRIE = {
     "nom": os.environ.get("MAIRIE_NOM", "Ville de Corbas"),
@@ -584,7 +610,11 @@ def destinataires_notification():
 
 def lien_fiche(pid):
     base = os.environ.get("APP_URL", "").rstrip("/")
-    return base + url_for("fiche", pid=pid) if base else url_for("fiche", pid=pid, _external=True)
+    if not base:
+        return url_for("fiche", pid=pid, _external=True)
+    if request.script_root and base.endswith(request.script_root):  # APP_URL écrite avec le sous-chemin : on ne le double pas
+        base = base[:-len(request.script_root)]
+    return base + url_for("fiche", pid=pid)
 
 
 def notifier_agents(p, e1, attente):
@@ -994,7 +1024,7 @@ def login():
             session.permanent = True
             session.update(uid=u["id"], email=u["email"], role=u["role"])
             nxt = request.args.get("next", "")
-            return redirect(nxt if nxt.startswith("/admin") and not nxt.startswith("//") else url_for("tableau"))
+            return redirect(request.script_root + nxt if nxt.startswith("/admin") and not nxt.startswith("//") else url_for("tableau"))
         noter(cle)
         flash("Identifiant ou mot de passe incorrect.", "err")
     return render_template("admin/login.html")

@@ -20,6 +20,25 @@ docker compose up --build
 
 En production : `DEMO=0`, `HTTPS=1`, vrai nom de domaine dans le `Caddyfile`, serveur SMTP renseigné.
 
+### Hébergement sous un sous-chemin
+
+Pour servir l'application sous un sous-chemin d'un domaine déjà utilisé (par exemple `https://maps.utagawavtt.com/monarbre/`) derrière un nginx existant, renseignez `URL_PREFIX=/monarbre` dans `.env`, publiez le port de l'application en local seulement (par exemple `127.0.0.1:8010:8000` dans un `docker-compose.override.yml`) et lancez uniquement l'application (`docker compose up -d --build app`, sans le Caddy du projet). Le serveur web doit **retirer** le préfixe avant de transmettre la requête (barre oblique finale dans `proxy_pass`). L'application remet le préfixe dans tous ses liens, formulaires et redirections, et donne à son cookie de session le chemin `/monarbre` (nom `monarbre_session`) : il ne se mélange pas à ceux des autres applications du domaine. Dans le bloc `server` du domaine :
+
+```nginx
+location = /monarbre { return 301 /monarbre/; }
+
+location ^~ /monarbre/ {
+    proxy_pass http://127.0.0.1:8010/;   # la barre finale retire /monarbre avant de transmettre
+    client_max_body_size 6m;             # copie du livret de famille : 5 Mo maximum
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_read_timeout 60s;
+}
+```
+
+`^~` garantit que ce bloc passe avant d'éventuels blocs `location` à expression régulière du domaine (par exemple pour le cache des images). `APP_URL`, s'il est renseigné, est l'adresse du site **sans** le sous-chemin (`https://maps.utagawavtt.com`) ; si le sous-chemin y figure, il n'est pas doublé.
+
 ## Utilisation
 
 | Qui | Où | Quoi |
