@@ -1,0 +1,8 @@
+# Remplacer par le vrai nom de domaine : Caddy obtient le certificat HTTPS automatiquement.
+parrainage.example.fr {
+    encode gzip
+    request_body {
+        max_size 6MB
+    }
+    reverse_proxy app:8000
+}

@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{% block title %}{{ DISPOSITIF.nom }}{% endblock %}</title>
+<link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='marque.svg') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<script>if (window.parent !== window) document.documentElement.className += ' en-iframe';</script>
+</head>
+<body>
+{% if logo_present %}<div class="wrap entete-ville"><a href="{{ MAIRIE.site }}"><img class="logo-ville" src="{{ url_for('logo') }}" alt="{{ MAIRIE.nom }}"></a></div>{% endif %}
+{% block body %}{% endblock %}
+{% set credits = credits_photos() %}{% if credits %}<footer class="wrap credits"><details><summary>Crédits photos</summary><ul>{% for c in credits %}<li>{{ c.photo }} : {{ c.auteur }}, <a href="{{ c.licence_url }}" target="_blank" rel="noopener">{{ c.licence }}</a>, <a href="{{ c.source }}" target="_blank" rel="noopener">Wikimedia Commons</a> (photo recadrée)</li>{% endfor %}</ul></details></footer>{% endif %}
+<script>
+/* Hauteur automatique quand la page est affichée dans une iframe (page WordPress).
+   On mesure le contenu (body) et non le document : la hauteur du document ne descend jamais sous celle de l'iframe,
+   qui ne pourrait donc plus rétrécir quand une étape plus courte s'affiche. */
+(function(){
+  if (window.parent === window) return;
+  var last = 0;
+  function hauteur(){
+    var b = document.body, cs = getComputedStyle(b);
+    return Math.ceil(b.getBoundingClientRect().height + parseFloat(cs.marginTop) + parseFloat(cs.marginBottom));
+  }
+  function send(){ var h = hauteur(); if (h !== last) { last = h; window.parent.postMessage({type:'parrainage-height', height:h}, '*'); } }
+  window.addEventListener('load', send); window.addEventListener('resize', send);
+  new MutationObserver(send).observe(document.body, {subtree:true, childList:true, attributes:true});
+  setInterval(send, 800);
+})();
+</script>
+</body>
+</html>

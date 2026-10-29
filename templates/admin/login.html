@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
+<title>Connexion – {{ DISPOSITIF.nom }}</title><link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='marque.svg') }}"><link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}"></head>
+<body class="admin"><main class="wrap" style="max-width:420px">
+{% if logo_present %}<a href="{{ MAIRIE.site }}"><img class="logo-ville" style="margin:20px auto 0" src="{{ url_for('logo') }}" alt="{{ MAIRIE.nom }}"></a>{% endif %}
+<img class="logo-dispositif" src="{{ url_for('static', filename='mon-arbre-a-corbas.svg') }}" alt="{{ DISPOSITIF.nom }} – {{ DISPOSITIF.devise }}">
+<h1 style="text-align:center">Connexion</h1>
+<p class="chapo" style="text-align:center">Espace réservé aux agents de la mairie.</p>
+{% with msgs = get_flashed_messages(with_categories=true) %}{% for c, m in msgs %}<div class="flash {{ c }}" role="alert">{{ m }}</div>{% endfor %}{% endwith %}
+<form method="post" class="panel">
+  <label for="email" style="margin-top:0">Adresse e-mail</label><input type="email" id="email" name="email" autocomplete="username" required autofocus>
+  <label for="password">Mot de passe</label><input type="password" id="password" name="password" autocomplete="current-password" required>
+  <p style="margin-bottom:0"><button style="width:100%">Se connecter</button></p>
+</form>
+<p class="mention" style="text-align:center">Mot de passe oublié ? Demandez à un administrateur de le réinitialiser.</p>
+</main></body></html>

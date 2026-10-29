@@ -1,0 +1,20 @@
+{% extends "admin/base.html" %}
+{% block title %}Photos{% endblock %}
+{% block body %}
+<h1>Photos du <strong>formulaire</strong></h1>
+<p class="chapo">Ces deux bandeaux illustrent le formulaire. Vous pouvez les remplacer par vos propres photos de Corbas. La photo de chaque essence se change dans « Essences ».</p>
+{% for l in lignes %}
+<div class="panel" style="max-width:720px">
+ <h2 style="margin-top:0">{{ l.titre }}</h2>
+ {% if l.url %}<img src="{{ l.url }}" alt="Photo actuelle : {{ l.titre }}" style="display:block;width:100%;max-width:480px;aspect-ratio:3/1;object-fit:cover;border-radius:4px">{% else %}<p class="mention">Aucune photo : seul le logo s'affiche.</p>{% endif %}
+ <p class="mention" style="margin-top:6px">{{ 'Photo envoyée par la mairie.' if l.envoyee else 'Photo fournie avec l\'application.' }}</p>
+ <form method="post" enctype="multipart/form-data"><input type="hidden" name="csrf" value="{{ csrf() }}"><input type="hidden" name="nom" value="{{ l.nom }}">
+  <label for="photo-{{ l.nom }}" style="margin-top:0">Nouvelle photo<span class="aide">Format paysage conseillé : elle est recadrée automatiquement en 3 pour 1 (1200 × 400). JPG, PNG ou WebP, 5 Mo maximum.</span></label>
+  <input type="file" id="photo-{{ l.nom }}" name="photo" accept="image/jpeg,image/png,image/webp" required>
+  <p><button>Remplacer la photo</button></p>
+ </form>
+ {% if l.envoyee %}<form method="post"><input type="hidden" name="csrf" value="{{ csrf() }}"><input type="hidden" name="nom" value="{{ l.nom }}"><input type="hidden" name="action" value="origine"><button class="sec">Rétablir la photo d'origine</button></form>{% endif %}
+</div>
+{% endfor %}
+<p class="mention">Les mentions de crédit (auteur, licence) s'affichent en bas du formulaire pour les photos fournies avec l'application ; elles disparaissent quand une photo est remplacée. Vous restez responsable des droits des photos que vous envoyez.</p>
+{% endblock %}

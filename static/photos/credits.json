@@ -1,0 +1,51 @@
+{
+ "hero-accueil": {
+  "photo": "Allée de tilleuls à Esch-sur-Sûre",
+  "auteur": "Zinneke",
+  "licence": "CC BY-SA 3.0",
+  "licence_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+  "source": "https://commons.wikimedia.org/wiki/File:Esch-sur-S%C3%BBre_-_Lime_tree_alley_leading_to_Chapelle_de_l%27Exaltation-de-la-Sainte-Croix_2020-08_--001.jpg"
+ },
+ "hero-merci": {
+  "photo": "Cerisiers en fleurs, High Park",
+  "auteur": "Fabian Roudra Baroi",
+  "licence": "CC BY-SA 4.0",
+  "licence_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+  "source": "https://commons.wikimedia.org/wiki/File:Cherry_Blossom_in_High_Park_68.jpg"
+ },
+ "essences/chene-vert": {
+  "photo": "Chêne vert, Montes de Vitoria",
+  "auteur": "Basotxerri",
+  "licence": "CC BY-SA 4.0",
+  "licence_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+  "source": "https://commons.wikimedia.org/wiki/File:Montes_de_Vitoria_-_Quercus_ilex_01.jpg"
+ },
+ "essences/tilleul-a-petites-feuilles": {
+  "photo": "Bourdon sur une fleur de tilleul",
+  "auteur": "Ivar Leidus",
+  "licence": "CC BY-SA 4.0",
+  "licence_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+  "source": "https://commons.wikimedia.org/wiki/File:Bombus_hypnorum_-_Tilia_cordata_-_Keila.jpg"
+ },
+ "essences/cerisier-a-fleurs": {
+  "photo": "Cerisier du Japon en fleurs",
+  "auteur": "Myrabella",
+  "licence": "CC BY-SA 3.0",
+  "licence_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+  "source": "https://commons.wikimedia.org/wiki/File:Cerisier_du_Japon_Prunus_serrulata.jpg"
+ },
+ "essences/erable-champetre": {
+  "photo": "Feuillage d'érable champêtre",
+  "auteur": "Robert Flogaus-Faust",
+  "licence": "CC BY 4.0",
+  "licence_url": "https://creativecommons.org/licenses/by/4.0/",
+  "source": "https://commons.wikimedia.org/wiki/File:Acer_campestre_3_RF.jpg"
+ },
+ "essences/charme-commun": {
+  "photo": "Charme commun, Hunsrück",
+  "auteur": "Willow",
+  "licence": "CC BY 2.5",
+  "licence_url": "https://creativecommons.org/licenses/by/2.5/",
+  "source": "https://commons.wikimedia.org/wiki/File:Carpinus_betulus_-_Hunsr%C3%BCck_001.jpg"
+ }
+}

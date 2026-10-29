@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}{{ titre }}{% endblock %}
+{% block body %}
+<main class="wrap">
+<h1>{{ titre }}</h1>
+<div class="banner {{ 'err' if code >= 500 else 'warn' }}" role="alert">{{ texte }}</div>
+<p><a class="btn sec" href="{{ url_for('formulaire') }}">Retour au formulaire</a></p>
+</main>
+{% endblock %}

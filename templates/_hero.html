@@ -1,0 +1,7 @@
+{# Bandeau d'accueil : photo d'arbres (si elle existe) et logo du dispositif. court : bandeau plus bas (page de confirmation). #}
+{% macro hero(nom, court=false) %}{% set p = photo(nom) %}
+<header class="hero{{ ' court' if court }}{{ '' if p else ' sans-photo' }}" id="hero">
+  {% if p %}<img class="hero-photo" src="{{ p }}" alt="" width="1200" height="400" fetchpriority="high">{% endif %}
+  <div class="hero-logo"><img src="{{ url_for('static', filename='mon-arbre-a-corbas.svg') }}" alt="{{ DISPOSITIF.nom }} – {{ DISPOSITIF.devise }}"></div>
+</header>
+{% endmacro %}

@@ -1,0 +1,41 @@
+{% extends "admin/base.html" %}
+{% block body %}
+<h1>Demandes de parrainage</h1>
+{% set a_traiter = stats.get('Reçue',0) + stats.get('Complément demandé',0) %}
+<div class="cards">
+  <a class="kpi {{ 'alerte' if a_traiter }}" href="{{ url_for('tableau', statut='a_traiter') }}"><b>{{ a_traiter }}</b>à traiter</a>
+  <a class="kpi" href="{{ url_for('tableau', statut='Validée') }}"><b>{{ stats.get('Validée',0) }}</b>certificats à imprimer</a>
+  <a class="kpi" href="{{ url_for('tableau', statut='Certificat imprimé') }}"><b>{{ stats.get('Certificat imprimé',0) }}</b>à remettre en mairie</a>
+  <a class="kpi" href="{{ url_for('tableau', statut="Liste d'attente") }}"><b>{{ stats.get("Liste d'attente",0) }}</b>en liste d'attente</a>
+  <a class="kpi" href="{{ url_for('tableau', statut='Remis') }}"><b>{{ stats.get('Remis',0) }}</b>remis</a>
+  {% if livrets %}<a class="kpi alerte" href="{{ url_for('tableau', livret=1) }}"><b>{{ livrets }}</b>copies de livret à supprimer</a>{% endif %}
+</div>
+<div class="panel"><b>Arbres libres par essence (campagnes ouvertes) :</b>
+  {% for s in stock %}<span class="badge {{ 'peu' if s.n<=2 }}">{{ s.nom }} : {{ s.n }}</span> {% endfor %}
+  <br><small>{{ libres }} arbre(s) libre(s) pour {{ en_cours }} demande(s) en cours de traitement : les familles ne se voient proposer que les places restantes.</small>
+</div>
+<form method="get" class="filtres" role="search">
+  {% if livret_filtre %}<input type="hidden" name="livret" value="1">{% endif %}
+  <label for="statut">Statut</label>
+  <select id="statut" name="statut" onchange="this.form.submit()"><option value="">Tous</option>
+    <option value="a_traiter" {{ 'selected' if statut=='a_traiter' }}>À traiter (reçues et compléments)</option>
+    {% for s in STATUTS %}<option {{ 'selected' if s==statut }}>{{ s }}</option>{% endfor %}</select>
+  <label for="campagne">Campagne</label>
+  <select id="campagne" name="campagne" onchange="this.form.submit()"><option value="">Toutes</option>{% for c in campagnes %}<option value="{{ c.id }}" {{ 'selected' if c.id==camp }}>{{ c.nom }}</option>{% endfor %}</select>
+  <label for="q">Recherche</label>
+  <input type="search" id="q" name="q" value="{{ recherche }}" placeholder="Nom, prénom, e-mail, référence" style="min-width:230px">
+  <button class="sec petit">Chercher</button>
+  {% if statut or camp or recherche or livret_filtre %}<a href="{{ url_for('tableau') }}">Effacer les filtres</a>{% endif %}
+</form>
+<p class="resultats" role="status">{{ rows|length }} demande{{ 's' if rows|length > 1 }}{% if livret_filtre %} dont la copie du livret est à supprimer{% endif %}{% if file_attente %} – les plus anciennes en premier : traitez-les dans l'ordre d'arrivée{% endif %}</p>
+<div class="tbl"><table>
+<tr><th scope="col">Référence</th><th scope="col" class="opt">Reçue le</th><th scope="col">Enfant</th><th scope="col">Naissance</th><th scope="col" class="opt">Parent</th><th scope="col" class="opt">Essence souhaitée</th><th scope="col">Statut</th><th scope="col"><span class="sr-only">Action</span></th></tr>
+{% for r in rows %}<tr>
+  <td><a href="{{ url_for('fiche', pid=r.id) }}">{{ r.ref }}</a></td><td class="opt">{{ r.created_at|fr }}</td>
+  <td>{{ r.enfant_prenom }} {{ r.enfant_nom }}{% if r.livret and not r.livret_supprime_at and r.statut in ('Validée','Certificat imprimé','Remis') %} <span class="badge peu" title="Le contrôle est fait : supprimez la copie du livret">livret à supprimer</span>{% endif %}</td>
+  <td>{{ r.naissance|fr }}</td><td class="opt">{{ r.parent_nom }}</td><td class="opt">{{ r.essence }}</td>
+  <td><span class="badge s-{{ r.statut.split(' ')[0] }}">{{ r.statut }}</span></td>
+  <td><a class="btn petit sec" href="{{ url_for('fiche', pid=r.id) }}" aria-label="Ouvrir {{ r.ref }}">Ouvrir</a></td></tr>
+{% else %}<tr><td colspan="8">Aucune demande{{ ' pour ces critères' if recherche or statut or camp or livret_filtre else ' pour le moment' }}.</td></tr>{% endfor %}
+</table></div>
+{% endblock %}

@@ -1,0 +1,11 @@
+# Configuration et secrets : ne jamais versionner
+.env
+
+# Données d'exécution (base SQLite, copies de livrets de famille, clé secrète, tuiles, photos envoyées) et jeu de démonstration
+data/
+demo_data/
+
+# Fichiers générés
+__pycache__/
+*.pyc
+.pytest_cache/

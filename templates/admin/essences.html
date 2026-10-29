@@ -1,0 +1,22 @@
+{% extends "admin/base.html" %}
+{% block title %}Essences{% endblock %}
+{% block body %}
+<h1>Essences</h1>
+<div class="tbl"><table><tr><th>Essence</th><th>Nom latin</th><th>Actif</th><th></th></tr>
+{% for e in rows %}<tr><td><span class="pastille" style="display:inline-block;width:14px;height:14px;border-radius:50%;background:{{ e.couleur }}"></span> {{ e.nom }}</td><td><i>{{ e.latin }}</i></td><td>{{ 'Oui' if e.actif else 'Non' }}</td>
+<td><a class="btn petit sec" href="{{ url_for('essences', edit=e.id) }}">Modifier</a></td></tr>{% endfor %}</table></div>
+<div class="panel"><h2 style="margin-top:0">{{ 'Modifier ' ~ edit.nom if edit else 'Nouvelle essence' }}</h2>
+<form method="post" enctype="multipart/form-data"><input type="hidden" name="csrf" value="{{ csrf() }}">{% if edit %}<input type="hidden" name="id" value="{{ edit.id }}">{% endif %}
+ <div class="row"><div><label for="nom">Nom courant</label><input type="text" id="nom" name="nom" value="{{ edit.nom if edit }}" required></div>
+ <div><label for="latin">Nom latin</label><input type="text" id="latin" name="latin" value="{{ edit.latin or '' if edit }}"></div></div>
+ <label for="resume">Une ligne de description (carte du formulaire)</label><input type="text" id="resume" name="resume" value="{{ edit.resume or '' if edit }}">
+ <label for="symbole">Ce qu'il représente (certificat)</label><textarea id="symbole" name="symbole">{{ edit.symbole or '' if edit }}</textarea>
+ <label for="caracteristiques">Ses caractéristiques (certificat)</label><textarea id="caracteristiques" name="caracteristiques">{{ edit.caracteristiques or '' if edit }}</textarea>
+ <label for="role">Son rôle à Corbas (certificat)</label><textarea id="role" name="role">{{ edit.role or '' if edit }}</textarea>
+ <div class="row"><div><label for="couleur">Couleur d'accent du certificat</label><input type="color" id="couleur" name="couleur" value="{{ edit.couleur if edit and edit.couleur else '#2e7d32' }}"></div>
+ <div><label for="photo">Photo de l'arbre (facultatif)<span class="aide">Affichée sur la carte de l'essence dans le formulaire. JPG, PNG ou WebP, 5 Mo maximum.</span></label><input type="file" id="photo" name="photo" accept="image/jpeg,image/png,image/webp"></div></div>
+ {% if photo_actuelle %}<div class="ctl"><img src="{{ photo_actuelle }}" alt="Photo actuelle : {{ edit.nom }}" style="width:120px;height:80px;object-fit:cover;border-radius:4px">
+  {% if photo_envoyee %}<label class="check" style="margin:0"><input type="checkbox" name="photo_retirer" value="1"><span>Retirer cette photo</span></label>{% else %}<span class="mention" style="margin:0">Photo fournie avec l'application. Envoyez-en une autre pour la remplacer.</span>{% endif %}</div>{% endif %}
+ <label class="check"><input type="checkbox" name="actif" value="1" {{ 'checked' if (edit and edit.actif) or not edit }}><span>Essence active (proposée aux familles si un arbre est libre)</span></label>
+ <button>Enregistrer</button></form></div>
+{% endblock %}

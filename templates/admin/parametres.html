@@ -1,0 +1,19 @@
+{% extends "admin/base.html" %}
+{% block title %}Notifications{% endblock %}
+{% block body %}
+<h1>Notifications des <strong>agents</strong></h1>
+<p class="chapo">À chaque nouvelle demande de parrainage, un e-mail prévient les adresses ci-dessous qu'il y a un traitement à faire. Il contient la référence, l'essence souhaitée et un lien vers la demande, <b>sans donnée personnelle</b>.</p>
+<div class="panel" style="max-width:640px">
+<form method="post"><input type="hidden" name="csrf" value="{{ csrf() }}">
+ <label for="notifications" style="margin-top:0">Adresses à prévenir <span class="aide">Une adresse par ligne (ou séparées par des virgules). 20 au maximum.</span></label>
+ <textarea id="notifications" name="notifications" rows="5" placeholder="agent1@exemple.fr&#10;agent2@exemple.fr">{{ saisie }}</textarea>
+ <p><button>Enregistrer</button></p>
+</form>
+<hr style="border:0;border-top:1px solid var(--bord)">
+<p style="margin:12px 0 4px"><b>Actuellement, {{ adresses|length }} adresse{{ 's' if adresses|length > 1 }} prévenue{{ 's' if adresses|length > 1 }}</b>
+ {% if origine == 'reglage' %}(réglage ci-dessus){% elif origine == 'serveur' %}(configuration du serveur, variable <code>NOTIFICATION_EMAILS</code>){% else %}(aucun réglage : tous les comptes du back-office){% endif %} :</p>
+<ul style="margin:0 0 12px">{% for a in adresses %}<li>{{ a }}</li>{% else %}<li>Personne : aucune notification ne sera envoyée.</li>{% endfor %}</ul>
+{% if adresses %}<form method="post"><input type="hidden" name="csrf" value="{{ csrf() }}"><input type="hidden" name="action" value="test"><button class="sec">Envoyer un message de test</button></form>
+ {% if not smtp %}<p class="mention">Aucun serveur d'envoi (SMTP) n'est configuré : le test est seulement enregistré dans « Courriers ».</p>{% endif %}{% endif %}
+</div>
+{% endblock %}

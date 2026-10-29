@@ -1,0 +1,271 @@
+{% extends "base.html" %}
+{% from "_hero.html" import hero with context %}
+{% block title %}{{ DISPOSITIF.nom }} – Parrainez un arbre pour votre enfant{% endblock %}
+{% macro err(k) %}{% if errors.get(k) %}<span class="err-msg" role="alert">{{ errors[k] }}</span>{% endif %}{% endmacro %}
+{% block body %}
+<main class="wrap">
+{{ hero('hero-accueil') }}
+<h1>Parrainez un <strong>arbre</strong> pour votre enfant</h1>
+<p class="chapo">Pour chaque enfant né à Corbas ou domicilié dans la commune, la ville propose de parrainer l'un de ses arbres. Vous choisissez l'essence, la ville choisit l'emplacement et vous remet un certificat pour retrouver l'arbre de votre enfant.</p>
+
+{% if not camp %}
+  <div class="banner warn">Les inscriptions sont fermées pour le moment. Elles rouvriront avec la prochaine campagne de plantation. Pour toute question : {{ MAIRIE.contact }}.</div>
+{% else %}
+  {% if errors %}<div class="banner err" role="alert" tabindex="-1" id="resume-err"><b>Votre demande n'a pas pu être envoyée.</b> Corrigez les points signalés ci-dessous.{% if errors.doublon %}<br>{{ errors.doublon }}{% endif %}</div>{% endif %}
+
+  <form method="post" action="{{ url_for('demande') }}" id="f" enctype="multipart/form-data" novalidate>
+    <ol class="progress" aria-label="Progression de la demande"><li class="on cur">Enfant</li><li>Vous</li><li>Essence</li><li>Envoi</li></ol>
+    <p class="etape-titre" id="etape-titre" aria-live="polite"></p>
+    <p class="mention" style="margin:4px 0 0">Les champs marqués d'un * sont obligatoires.</p>
+
+    <section class="etape actif" data-titre="Étape 1 sur 4">
+      {% if attente %}
+        <div class="banner warn">Toutes les places de la campagne « {{ camp.nom }} » sont attribuées ou en cours d'attribution. Vous pouvez tout de même vous inscrire sur liste d'attente : nous vous préviendrons dès que de nouveaux arbres seront plantés.</div>
+      {% elif total <= 10 %}
+        <div class="banner warn">Il reste {{ total }} arbre{{ 's' if total > 1 }} disponible{{ 's' if total > 1 }} pour la campagne « {{ camp.nom }} ».</div>
+      {% endif %}
+      {% if not errors %}
+      <div class="prep"><b>Avant de commencer, préparez (3 minutes) :</b>
+        <ul><li>la date de naissance de votre enfant (moins de 12 mois),</li>
+            <li>une copie du livret de famille : une photo prise avec votre téléphone suffit,</li>
+            <li>votre adresse e-mail.</li></ul></div>
+      {% endif %}
+
+      <h2>Votre <strong>enfant</strong></h2>
+      <div class="row">
+        <div class="{{ 'has-err' if errors.enfant_prenom }}"><label for="enfant_prenom">Prénom de l'enfant *<span class="aide">Il figurera sur le certificat.</span></label>
+          <input type="text" id="enfant_prenom" name="enfant_prenom" value="{{ v.enfant_prenom }}" autocomplete="off" maxlength="{{ LONGUEURS.enfant_prenom }}" required>{{ err('enfant_prenom') }}</div>
+        <div class="{{ 'has-err' if errors.enfant_nom }}"><label for="enfant_nom">Nom de l'enfant *<span class="aide">Non imprimé sur le certificat.</span></label>
+          <input type="text" id="enfant_nom" name="enfant_nom" value="{{ v.enfant_nom }}" autocomplete="off" maxlength="{{ LONGUEURS.enfant_nom }}" required>{{ err('enfant_nom') }}</div>
+      </div>
+      <div class="{{ 'has-err' if errors.naissance }}"><label for="naissance">Date de naissance *<span class="aide">Votre enfant doit avoir moins de 12 mois.</span></label>
+        <input type="date" id="naissance" name="naissance" value="{{ v.naissance }}" min="{{ min_naissance }}" max="{{ today }}" required>{{ err('naissance') }}
+        <span class="err-msg" id="msg-delai" role="alert" hidden>Cet enfant a plus de 12 mois : le parrainage doit être demandé avant ses 12 mois. Si vous pensez être dans un cas particulier, contactez l'accueil ({{ MAIRIE.contact }}).</span></div>
+      <div class="{{ 'has-err' if errors.lien }}"><label for="lien">Lien avec Corbas *<span class="aide">L'enfant doit être né à Corbas ou y être domicilié. Pour des jumeaux, faites une demande par enfant.</span></label>
+        <select id="lien" name="lien" required>
+          <option value="">Choisir…</option>
+          {% for o in LIENS %}<option {{ 'selected' if v.lien==o }}>{{ o }}</option>{% endfor %}
+        </select>{{ err('lien') }}</div>
+    </section>
+
+    <section class="etape" data-titre="Étape 2 sur 4">
+      <h2>Vos <strong>coordonnées</strong></h2>
+      <div class="{{ 'has-err' if errors.parent_qualite }}"><label for="parent_qualite">Vous êtes *</label>
+        <select id="parent_qualite" name="parent_qualite" required>
+          <option value="">Choisir…</option>
+          {% for o in QUALITES %}<option {{ 'selected' if v.parent_qualite==o }}>{{ o }}</option>{% endfor %}
+        </select>{{ err('parent_qualite') }}</div>
+      <div class="{{ 'has-err' if errors.parent_nom }}"><label for="parent_nom">Vos prénom et nom *</label>
+        <input type="text" id="parent_nom" name="parent_nom" value="{{ v.parent_nom }}" autocomplete="name" maxlength="{{ LONGUEURS.parent_nom }}" required>{{ err('parent_nom') }}</div>
+      <div class="row">
+        <div class="{{ 'has-err' if errors.email }}"><label for="email">Adresse e-mail *</label>
+          <input type="email" id="email" name="email" value="{{ v.email }}" autocomplete="email" maxlength="{{ LONGUEURS.email }}" placeholder="prenom.nom@exemple.fr" required>{{ err('email') }}</div>
+        <div class="{{ 'has-err' if errors.email2 }}"><label for="email2">Confirmez votre e-mail *</label>
+          <input type="email" id="email2" name="email2" value="{{ v.email2 }}" autocomplete="off" maxlength="{{ LONGUEURS.email2 }}" placeholder="Retapez votre adresse" required>{{ err('email2') }}</div>
+      </div>
+      <p class="aide" style="margin:6px 0 0">Nous vous écrirons uniquement pour cette demande : vérifiez bien cette adresse.</p>
+      <div class="{{ 'has-err' if errors.tel }}"><label for="tel">Téléphone mobile *<span class="aide">Pour vous joindre rapidement si besoin. Un numéro étranger commence par + et l'indicatif du pays.</span></label>
+        <input type="tel" id="tel" name="tel" value="{{ v.tel }}" autocomplete="tel" inputmode="tel" maxlength="{{ LONGUEURS.tel }}" placeholder="06 12 34 56 78" required>{{ err('tel') }}</div>
+      <div class="{{ 'has-err' if errors.adresse }}"><label for="adresse">Adresse postale *<span class="aide">Tapez le début, puis choisissez dans la liste : le code postal et la commune se remplissent seuls. Pour un enfant domicilié à Corbas, seules les adresses de Corbas sont proposées.</span></label>
+        <input type="text" id="adresse" name="adresse" value="{{ v.adresse }}" autocomplete="street-address" maxlength="{{ LONGUEURS.adresse }}" placeholder="12 rue des Lilas" required>{{ err('adresse') }}</div>
+      <div class="row">
+        <div class="{{ 'has-err' if errors.cp }}"><label for="cp">Code postal *</label>
+          <input type="text" id="cp" name="cp" value="{{ v.cp }}" inputmode="numeric" autocomplete="postal-code" maxlength="{{ LONGUEURS.cp }}" placeholder="69960" required>{{ err('cp') }}</div>
+        <div class="{{ 'has-err' if errors.ville }}"><label for="ville">Commune *</label>
+          <input type="text" id="ville" name="ville" value="{{ v.ville }}" autocomplete="address-level2" maxlength="{{ LONGUEURS.ville }}" required>{{ err('ville') }}</div>
+      </div>
+    </section>
+
+    <section class="etape" data-titre="Étape 3 sur 4">
+      <h2>Choisissez l'<strong>essence</strong></h2>
+      <p class="chapo">La ville choisit l'emplacement précis de l'arbre. Vous le découvrirez sur votre certificat.</p>
+      <fieldset style="border:0;padding:0;margin:0" class="{{ 'has-err' if errors.essence1 }}">
+        <legend class="lab">Essence souhaitée *</legend>
+        <div class="cartes">
+          {% for e in essences %}
+          <label class="carte{{ ' avec-photo' if e.photo }}" style="margin:0">
+            <input type="radio" name="essence1" value="{{ e.id }}" {{ 'checked' if v.essence1==e.id|string }} required>
+            <span class="in">
+              {% if e.photo %}<img class="carte-photo" src="{{ e.photo }}" alt="" loading="lazy" width="300" height="200">{% endif %}
+              <span class="txt">
+                <b><span class="pastille" style="background:{{ e.couleur }}"></span>{{ e.nom }}</b>
+                <i>{{ e.latin }}</i>
+                <span style="display:block;font-weight:400;margin-top:4px">{{ e.resume }}</span>
+                {% if attente %}<span class="badge att">Liste d'attente</span>{% elif e.dispo <= 2 %}<span class="badge peu">Plus que {{ e.dispo }}</span>{% else %}<span class="badge">Disponible</span>{% endif %}
+              </span>
+            </span>
+          </label>
+          {% endfor %}
+        </div>{{ err('essence1') }}
+      </fieldset>
+      <label for="essence2">Seconde essence (facultatif)<span class="aide">Si votre premier choix n'est plus disponible.</span></label>
+      <select id="essence2" name="essence2">
+        <option value="">Aucune</option>
+        {% for e in essences %}<option value="{{ e.id }}" {{ 'selected' if v.essence2==e.id|string }}>{{ e.nom }}</option>{% endfor %}
+      </select>
+    </section>
+
+    <section class="etape" data-titre="Étape 4 sur 4">
+      <h2>Vérifiez et <strong>envoyez</strong></h2>
+      <div class="panel recap" id="recap" aria-live="polite"></div>
+      <div class="{{ 'has-err' if errors.livret or errors.livret_a_rejoindre }}"><label for="livret">Copie du livret de famille *<span class="aide">La ou les pages qui mentionnent l'enfant. PDF, JPG ou PNG, 5 Mo maximum. Vous pouvez la photographier avec votre téléphone. Elle sert uniquement à vérifier l'éligibilité ; l'original sera demandé au retrait du certificat.</span></label>
+        <input type="file" id="livret" name="livret" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" required>{{ err('livret') }}{% if errors.livret_a_rejoindre and not errors.livret %}<span class="err-msg" role="alert">{{ errors.livret_a_rejoindre }}</span>{% endif %}</div>
+      <div class="{{ 'has-err' if errors.attest }}"><label class="check"><input type="checkbox" name="attest" value="1" {{ 'checked' if v.attest }}><span>J'atteste être titulaire de l'autorité parentale sur cet enfant, qu'il est né à Corbas ou y est domicilié, qu'il est né depuis moins de 12 mois et que les informations sont exactes. *</span></label>{{ err('attest') }}</div>
+      <div class="{{ 'has-err' if errors.engage }}"><label class="check"><input type="checkbox" name="engage" value="1" {{ 'checked' if v.engage }}><span>J'ai compris que l'arbre reste un bien communal : le parrainage ne donne aucun droit de propriété ni d'usage exclusif, et la commune peut intervenir sur l'arbre (taille, déplacement, abattage pour motif sanitaire ou de sécurité). *</span></label>{{ err('engage') }}</div>
+      <div class="{{ 'has-err' if errors.rgpd }}"><label class="check"><input type="checkbox" name="rgpd" value="1" {{ 'checked' if v.rgpd }}><span>J'accepte que mes données soient traitées pour ce dispositif (voir mention ci-dessous). *</span></label>{{ err('rgpd') }}</div>
+      <label class="check"><input type="checkbox" name="benevolat" value="1" {{ 'checked' if v.benevolat }}><span>Je souhaite être informé(e) des actions d'entretien bénévoles autour des arbres (arrosage, paillage…). <i>(Facultatif)</i></span></label>
+      <div class="hp" aria-hidden="true"><label>Ne pas remplir <input type="text" name="site_web" tabindex="-1" autocomplete="off"></label></div>
+      <p class="mention">{{ MAIRIE.nom }} traite ces données pour gérer le dispositif « {{ DISPOSITIF.nom }} » (mission d'intérêt public). Elles sont conservées pendant toute la durée de vie de l'arbre parrainé et ne sont transmises à personne. Pour vous aider à saisir votre adresse, les premières lettres que vous tapez sont transmises, par notre serveur et sans aucune autre information, à la Base Adresse Nationale (service public). La copie du livret de famille n'est lue que par les agents de la mairie, pour vérifier l'éligibilité, puis elle est supprimée (elle reste récupérable 6 mois, puis elle est effacée définitivement). Vous pouvez exercer vos droits d'accès, de rectification et de suppression à l'accueil de la mairie ou à {{ MAIRIE.dpo }}.</p>
+    </section>
+
+    <div class="nav">
+      <button type="button" class="sec" id="prec" hidden>Retour</button>
+      <span></span>
+      <button type="button" id="suiv">Continuer</button>
+      <button type="submit" id="envoi" hidden>Envoyer ma demande</button>
+    </div>
+  </form>
+{% endif %}
+</main>
+<script src="{{ url_for('static', filename='adresse.js') }}"></script>
+<script>
+(function(){
+  var f = document.getElementById('f'); if(!f) return;
+  var steps = [].slice.call(f.querySelectorAll('.etape')), bars = f.querySelectorAll('.progress li'), i = 0, pret = false;
+  var prec = document.getElementById('prec'), suiv = document.getElementById('suiv'), envoi = document.getElementById('envoi');
+  var min = "{{ min_naissance }}";
+  function show(n){
+    i = n;
+    steps.forEach(function(s,k){ s.classList.toggle('actif', k===n); });
+    bars.forEach(function(b,k){ b.classList.toggle('on', k<=n); b.classList.toggle('cur', k===n); if(k===n) b.setAttribute('aria-current','step'); else b.removeAttribute('aria-current'); });
+    document.getElementById('etape-titre').textContent = steps[n].dataset.titre;
+    prec.hidden = n===0; suiv.hidden = n===steps.length-1; envoi.hidden = n!==steps.length-1;
+    var hero = document.getElementById('hero'); if(hero) hero.classList.toggle('compact', n>0);  /* la photo n'occupe l'écran qu'à la première étape */
+    if(n===steps.length-1) recap();
+    /* À chaque étape on remonte au début du formulaire (pas tout en haut de la page : l'introduction n'a pas à être relue).
+       Dans une iframe, c'est la page WordPress qui doit défiler : on le lui demande. */
+    if(pret){
+      if(window.parent!==window) window.parent.postMessage({type:'parrainage-scroll'}, '*');
+      else f.scrollIntoView({block:'start'});
+    }
+    var h = steps[n].querySelector('h2'); if(h){ h.setAttribute('tabindex','-1'); h.focus({preventScroll:true}); }
+  }
+  var EMAIL = /^[^@\s<>",;:]+@[^@\s<>",;:]+\.[^@\s<>",;:]{2,}$/, MSG_EMAIL = 'Cette adresse e-mail semble incomplète, par exemple prenom.nom@exemple.fr.';
+  var MOBILE = /^(0[67]\d{8}|(\+33|0033)0?[67]\d{8}|\+(?!33)\d{8,15})$/, MSG_MOBILE = "Indiquez votre numéro de mobile (06 ou 07…). Un numéro étranger commence par + suivi de l'indicatif du pays.";
+  function val(id){ var e=f.elements[id]; return e? e.value.trim():''; }
+  function erreur(el, msg){
+    var w = el.closest('div'), m = w.querySelector('.err-msg.js');
+    if(!m){ m=document.createElement('span'); m.className='err-msg js'; m.setAttribute('role','alert'); w.appendChild(m); }
+    m.textContent = msg; w.classList.add('has-err'); el.setAttribute('aria-invalid','true');
+  }
+  function clear(s){ s.querySelectorAll('.err-msg.js').forEach(function(m){m.remove();}); s.querySelectorAll('.has-err').forEach(function(w){w.classList.remove('has-err');}); s.querySelectorAll('[aria-invalid]').forEach(function(e){e.removeAttribute('aria-invalid');}); }
+  function valide(n){
+    var s = steps[n], ok = true, first = null; clear(s);
+    s.querySelectorAll('[required]').forEach(function(el){
+      if(el.type==='radio'){
+        if(!f.querySelector('input[name="'+el.name+'"]:checked') && !el.dataset.done){ el.dataset.done=1;
+          var fs = el.closest('fieldset'); var m=document.createElement('span'); m.className='err-msg js'; m.setAttribute('role','alert'); m.textContent="Choisissez l'essence de l'arbre."; fs.appendChild(m); ok=false; first=first||el; }
+        return;
+      }
+      if(!el.value.trim()){ erreur(el, 'Ce champ est à renseigner.'); ok=false; first=first||el; }
+    });
+    s.querySelectorAll('input[type=radio]').forEach(function(r){ delete r.dataset.done; });
+    if(n===1){
+      var lien=f.elements.lien.value, vl=f.elements.ville, cp=f.elements.cp;
+      if(cp.value && !/^\d{5}$/.test(cp.value.trim())){ erreur(cp,'Le code postal comporte 5 chiffres.'); ok=false; first=first||cp; }
+      if(lien.toLowerCase().indexOf('domicili')>-1 && vl.value && !(vl.value.trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'')==='corbas' && cp.value.trim()==='69960')){
+        erreur(vl,"Pour un enfant domicilié à Corbas, l'adresse doit être à Corbas (code postal 69960). Si l'enfant est né à Corbas, revenez à l'étape 1 et choisissez « Né(e) à Corbas »."); ok=false; first=first||vl; }
+      var tel=f.elements.tel;
+      if(tel.value.trim() && !MOBILE.test(tel.value.replace(/[\s.()\-]/g,''))){ erreur(tel, MSG_MOBILE); ok=false; first=first||tel; }
+      var a=f.elements.email, b=f.elements.email2;
+      if(a.value && !EMAIL.test(a.value.trim())){ erreur(a,MSG_EMAIL); ok=false; first=first||a; }
+      else if(a.value && b.value && a.value.toLowerCase()!==b.value.toLowerCase()){ erreur(b,'Les deux adresses e-mail ne sont pas identiques.'); ok=false; first=first||b; }
+    }
+    if(n===0){
+      var d=f.elements.naissance;
+      if(d.value && d.value>"{{ today }}"){ erreur(d,'La date de naissance ne peut pas être dans le futur.'); ok=false; first=first||d; }
+      else if(d.value && d.value<min){ document.getElementById('msg-delai').hidden=false; ok=false; first=first||d; }
+    }
+    if(first) first.focus();
+    return ok;
+  }
+  function recap(){
+    var ess = f.querySelector('input[name="essence1"]:checked'), ess2 = f.elements.essence2;
+    var nom = ess ? ess.closest('label').querySelector('b').textContent : '';
+    var l = [['Enfant', val('enfant_prenom')+' '+val('enfant_nom')],['Né(e) le', val('naissance').split('-').reverse().join('/')],
+             ['Lien avec Corbas', val('lien')],['Parent', val('parent_nom')+' ('+val('parent_qualite')+')'],['E-mail', val('email')],['Mobile', val('tel')],
+             ['Adresse', val('adresse')+', '+val('cp')+' '+val('ville')],['Essence', nom + (ess2.value? ' (2e choix : '+ess2.options[ess2.selectedIndex].text+')':'')]];
+    var dl = document.createElement('dl');
+    l.forEach(function(x){ var dt=document.createElement('dt'), dd=document.createElement('dd'); dt.textContent=x[0]; dd.textContent=x[1]; dl.appendChild(dt); dl.appendChild(dd); });
+    var r = document.getElementById('recap'); r.textContent=''; r.appendChild(dl);
+    var p=document.createElement('p'); p.className='modifier'; var bs=[['Enfant',0],['Vous',1],['Essence',2]];
+    bs.forEach(function(x){ var b=document.createElement('button'); b.type='button'; b.className='sec'; b.textContent='Modifier : '+x[0]; b.onclick=function(){show(x[1]);}; p.appendChild(b); });
+    r.appendChild(p);
+  }
+  function efface(w){ w.querySelectorAll('.err-msg.js').forEach(function(m){m.remove();}); w.classList.remove('has-err'); w.querySelectorAll('[aria-invalid]').forEach(function(e){e.removeAttribute('aria-invalid');}); }
+  f.addEventListener('submit', function(e){
+    /* Tout est contrôlé ici avant l'envoi : un refus du serveur ferait perdre le fichier choisi. */
+    var first = null;
+    var el = f.elements.livret, w = el.closest('div'); efface(w);
+    var fi = el.files && el.files[0], msg = '';
+    if(!fi){ msg = 'Joignez une copie du livret de famille (PDF, JPG ou PNG).'; }
+    else if(!/\.(pdf|jpe?g|png)$/i.test(fi.name)){ msg = "Ce fichier n'est pas un PDF, un JPG ou un PNG."; }
+    else if(fi.size > 5*1024*1024){ msg = 'Le fichier dépasse 5 Mo. Réduisez-le ou photographiez-le à nouveau.'; }
+    if(msg){ erreur(el, msg); first = el; }
+    [['attest',"Merci de confirmer que vous détenez l'autorité parentale."],
+     ['engage',"Merci de confirmer que vous avez compris le statut de l'arbre."],
+     ['rgpd',"Merci d'accepter le traitement de vos données pour envoyer la demande."]].forEach(function(x){
+      var c = f.elements[x[0]], d = c.closest('div'); efface(d);
+      if(!c.checked){ erreur(c, x[1]); first = first || c; }
+    });
+    if(first){ e.preventDefault(); first.focus(); return; }
+    envoi.disabled = true; envoi.textContent = 'Envoi en cours…';  /* évite le double envoi */
+  });
+  window.addEventListener('pageshow', function(ev){ if(ev.persisted){ envoi.disabled = false; envoi.textContent = 'Envoyer ma demande'; } });
+  /* Contrôle dès la sortie du champ : on corrige tout de suite, pas à la fin de l'étape. */
+  function enDirect(nom, test){
+    var el = f.elements[nom];
+    el.addEventListener('blur', function(){
+      var w = el.closest('div'); w.querySelectorAll('.err-msg.js').forEach(function(m){m.remove();}); w.classList.remove('has-err'); el.removeAttribute('aria-invalid');
+      var v = el.value.trim(), m = v ? test(v) : '';
+      if(m) erreur(el, m);
+    });
+  }
+  enDirect('email', function(v){ return EMAIL.test(v) ? '' : MSG_EMAIL; });
+  /* « Pas identiques » n'a de sens que si la première adresse est valide : sinon, une seule erreur à la fois. */
+  enDirect('email2', function(v){ var a = f.elements.email.value.trim(); return a && EMAIL.test(a) && v.toLowerCase() !== a.toLowerCase() ? 'Les deux adresses e-mail ne sont pas identiques.' : ''; });
+  f.elements.email.addEventListener('blur', function(){ if(f.elements.email2.value.trim()) f.elements.email2.dispatchEvent(new Event('blur')); });
+  enDirect('tel', function(v){ return MOBILE.test(v.replace(/[\s.()\-]/g,'')) ? '' : MSG_MOBILE; });
+  enDirect('cp', function(v){ return /^\d{5}$/.test(v) ? '' : 'Le code postal comporte 5 chiffres.'; });
+  /* Adresse : suggestions de la Base Adresse Nationale (relayées par notre serveur). Choisir une suggestion remplit aussi le code postal et la commune. */
+  if(window.Autocompletion) Autocompletion({
+    champ: f.elements.adresse, url: "{{ url_for('api_adresse') }}",
+    params: function(){ return f.elements.lien.value.toLowerCase().indexOf('domicili') > -1 ? '&corbas=1' : ''; },
+    titre: function(it){ return it.adresse; }, detail: function(it){ return it.cp + ' ' + it.ville; },
+    vide: "Aucune adresse trouvée : saisissez-la à la main.",
+    choisi: function(it, champ){
+      champ.value = it.adresse; f.elements.cp.value = it.cp; f.elements.ville.value = it.ville;
+      ['adresse','cp','ville'].forEach(function(n){ efface(f.elements[n].closest('div')); });
+      if(!it.numero){ champ.focus(); champ.setSelectionRange(0, 0); return "Ajoutez votre numéro devant le nom de la rue."; }
+    }
+  });
+  suiv.onclick = function(){ if(valide(i)) show(i+1); };
+  prec.onclick = function(){ show(i-1); };
+  f.elements.naissance.addEventListener('change', function(){ document.getElementById('msg-delai').hidden = !(this.value && this.value < min); });
+  // Jumeaux : une demande par enfant. On réutilise les coordonnées du parent et la date de naissance (stockées dans ce navigateur seulement).
+  var CH=['naissance','lien','parent_qualite','parent_nom','email','email2','tel','adresse','cp','ville'];
+  try{
+    if(location.search.indexOf('autre=1')>-1){ var sv=JSON.parse(sessionStorage.getItem('parrainage-parent')||'{}');
+      CH.forEach(function(k){ if(sv[k]) f.elements[k].value=sv[k]; });
+      if(sv.naissance){ var b=document.createElement('div'); b.className='banner'; b.textContent="Nous avons repris vos coordonnées. Indiquez le prénom et le nom de l'autre enfant et joignez de nouveau la copie du livret de famille : une demande par enfant."; f.parentNode.insertBefore(b,f); } }
+    f.addEventListener('submit', function(){ var o={}; CH.forEach(function(k){ o[k]=f.elements[k].value; }); sessionStorage.setItem('parrainage-parent', JSON.stringify(o)); });
+  }catch(e){}
+  f.addEventListener('keydown', function(e){ if(e.key==='Enter' && e.target.tagName!=='TEXTAREA' && i<steps.length-1){ e.preventDefault(); suiv.click(); } });
+  {% if errors %}
+  f.querySelectorAll('.has-err input, .has-err select').forEach(function(e){ e.setAttribute('aria-invalid','true'); });
+  var k = steps.findIndex(function(s){ return s.querySelector('.has-err'); }); if(k<0) k = steps.length-1;
+  pret = true; show(k); var r = document.getElementById('resume-err'); if(r) r.focus();
+  {% else %}show(0); pret = true;{% endif %}
+})();
+</script>
+{% endblock %}

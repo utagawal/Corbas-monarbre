@@ -1,0 +1,21 @@
+{% extends "admin/base.html" %}
+{% block title %}Utilisateurs{% endblock %}
+{% block body %}
+<h1>Utilisateurs du back-office</h1>
+<p class="chapo"><b>Agent</b> : traite les demandes, imprime les certificats, consulte les courriers et exporte les données. <b>Administrateur</b> : fait aussi tout le paramétrage (campagnes, essences, arbres, utilisateurs), restaure les copies de livret et anonymise les fiches.</p>
+<div class="tbl"><table>
+<tr><th>Adresse e-mail</th><th>Rôle</th><th>Nouveau mot de passe</th><th></th></tr>
+{% for u in rows %}<tr><td>{{ u.email }}{% if u.id == session.uid %} <small>(vous)</small>{% endif %}</td><td>{{ 'Administrateur' if u.role == 'admin' else 'Agent' }}</td>
+<td><form method="post" class="ctl" style="flex-wrap:nowrap"><input type="hidden" name="csrf" value="{{ csrf() }}"><input type="hidden" name="id" value="{{ u.id }}"><input type="hidden" name="action" value="mdp">
+ <input type="password" name="mdp" aria-label="Nouveau mot de passe de {{ u.email }}" minlength="10" autocomplete="new-password" placeholder="10 caractères minimum" style="width:auto;padding:4px" required>
+ <button class="sec petit">Changer</button></form></td>
+<td>{% if u.id != session.uid %}<form method="post" onsubmit="return confirm('Supprimer ce compte ?')"><input type="hidden" name="csrf" value="{{ csrf() }}"><input type="hidden" name="id" value="{{ u.id }}"><input type="hidden" name="action" value="supprimer"><button class="danger petit">Supprimer</button></form>{% endif %}</td></tr>{% endfor %}
+</table></div>
+<div class="panel"><h2 style="margin-top:0">Nouveau compte</h2>
+<form method="post"><input type="hidden" name="csrf" value="{{ csrf() }}"><input type="hidden" name="action" value="creer">
+ <div class="row"><div><label for="email">Adresse e-mail</label><input type="email" id="email" name="email" autocomplete="off" required></div>
+ <div><label for="role">Rôle</label><select id="role" name="role" required><option value="agent">Agent</option><option value="admin">Administrateur</option></select></div></div>
+ <label for="mdp">Mot de passe provisoire <span class="aide">10 caractères minimum. Chacun peut ensuite le changer en cliquant sur son adresse en haut à droite.</span></label>
+ <input type="password" id="mdp" name="mdp" minlength="10" autocomplete="new-password" required>
+ <button>Créer le compte</button></form></div>
+{% endblock %}

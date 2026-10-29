@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% from "_hero.html" import hero with context %}
+{% block title %}Demande enregistrée – {{ DISPOSITIF.nom }}{% endblock %}
+{% block body %}
+<main class="wrap">
+{{ hero('hero-merci', court=true) }}
+<div class="merci-tete"><span class="coche" aria-hidden="true"></span><h1>Merci <strong>{{ p.parent_nom.split(' ')[0] }}</strong> !</h1></div>
+<div class="banner">
+  Votre demande pour <b>{{ p.enfant_prenom }}</b> est bien enregistrée.<br>
+  Référence à conserver : <span class="ref">{{ p.ref }}</span>
+</div>
+
+<h2>Et <strong>maintenant</strong> ?</h2>
+<ol class="suite">
+  <li class="fait"><b>Votre demande est enregistrée.</b><br>Un e-mail de confirmation vous est envoyé. Il peut arriver dans les courriers indésirables : pensez à les consulter.</li>
+  {% if p.statut == "Liste d'attente" %}
+  <li><b>Vous êtes sur liste d'attente.</b><br>Toutes les places sont pour l'instant attribuées ou en cours d'attribution. Nous vous préviendrons par e-mail dès que de nouveaux arbres seront plantés.</li>
+  <li><b>Le certificat vous attend en mairie.</b><br>Un second e-mail vous prévient quand l'arbre de {{ p.enfant_prenom }} est choisi.</li>
+  {% else %}
+  <li><b>Nos services étudient votre demande</b> et choisissent l'arbre de {{ p.enfant_prenom }}.</li>
+  <li><b>Vous recevez un second e-mail</b> dès que le certificat est prêt.</li>
+  {% endif %}
+  <li><b>Vous retirez le certificat à l'accueil de la mairie.</b><br>{{ MAIRIE.adresse }}<br>{{ MAIRIE.horaires|capitalize }}<br>
+    Apportez <b>l'original du livret de famille</b> et <b>un justificatif de domicile</b>.</li>
+</ol>
+
+<p>Une question ? <a href="mailto:{{ MAIRIE.contact }}">{{ MAIRIE.contact }}</a></p>
+<hr style="border:0;border-top:1px solid var(--bord);margin:20px 0">
+<p><b>Jumeaux ou autre enfant ?</b> Chaque enfant a son propre arbre : faites une demande par enfant.</p>
+<p><a class="btn sec" href="{{ url_for('formulaire', autre=1) }}">Faire une demande pour un autre enfant</a>
+   <button type="button" class="sec" onclick="window.print()">Imprimer cette page</button></p>
+</main>
+{% endblock %}

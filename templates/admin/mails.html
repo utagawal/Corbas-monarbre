@@ -1,0 +1,13 @@
+{% extends "admin/base.html" %}
+{% block title %}Courriers{% endblock %}
+{% block body %}
+<h1>Courriers</h1>
+<p class="chapo">Les 100 derniers e-mails. {% if smtp %}Les courriers qui n'ont pas pu partir peuvent être renvoyés.{% else %}Sans serveur SMTP configuré, ils sont seulement enregistrés ici (mode test).{% endif %} Cliquez sur un courrier pour lire son texte.</p>
+{% for m in rows %}<div class="panel">
+ <details class="mail"><summary><b>{{ m.sujet }}</b><br><small>À {{ m.destinataire }} – {{ m.created_at|frdt }} –
+ {% if m.envoye %}<span class="ok">envoyé</span>{% elif m.erreur %}<span class="ko">échec : {{ m.erreur }}</span>{% elif smtp %}en cours d'envoi{% else %}non envoyé (enregistré seulement){% endif %}</small></summary>
+ <pre class="mail">{{ m.corps }}</pre></details>
+ {% if smtp and not m.envoye and m.destinataire != '(anonymisé)' %}<form method="post" action="{{ url_for('renvoyer_mail', mid=m.id) }}" style="margin-top:8px"><input type="hidden" name="csrf" value="{{ csrf() }}"><button class="sec petit">Renvoyer</button></form>{% endif %}
+</div>
+{% else %}<p>Aucun courrier pour le moment.</p>{% endfor %}
+{% endblock %}

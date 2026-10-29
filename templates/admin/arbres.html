@@ -1,0 +1,54 @@
+{% extends "admin/base.html" %}
+{% block title %}Arbres{% endblock %}
+{% block body %}
+<h1>Arbres à planter (stock)</h1>
+<p class="chapo">Seuls les arbres <b>libres</b> de ce stock peuvent être proposés aux familles. Ajoutez ici les arbres réellement prévus à la plantation.</p>
+<form method="get" class="ctl"><label for="campagne" style="margin:0">Campagne</label>
+ <select id="campagne" name="campagne" style="width:auto" onchange="this.form.submit()"><option value="">Toutes</option>{% for c in campagnes %}<option value="{{ c.id }}" {{ 'selected' if c.id==camp }}>{{ c.nom }}</option>{% endfor %}</select></form>
+<div class="tbl"><table>
+<tr><th>Identifiant</th><th>Essence</th><th>Lieu</th><th>GPS</th><th>Plantation</th><th>Statut</th><th>Parrainage</th><th></th></tr>
+{% for a in rows %}<tr><td>{{ a.code }}</td><td>{{ a.essence }}</td><td>{{ a.lieu }}{% if a.adresse %}<br><small>{{ a.adresse }}</small>{% endif %}</td>
+<td><small><a href="https://www.openstreetmap.org/?mlat={{ a.lat }}&amp;mlon={{ a.lon }}#map=18/{{ a.lat }}/{{ a.lon }}" target="_blank" rel="noopener" title="Voir sur la carte (nouvel onglet)">{{ '%.5f'|format(a.lat) }}, {{ '%.5f'|format(a.lon) }}</a></small></td>
+<td>{{ a.date_plantation|fr or ('prévue ' ~ a.annee_plantation) }}</td><td>{{ a.statut }}</td><td>{% if a.pref %}{{ a.pref }} ({{ a.enfant_prenom }}){% endif %}</td>
+<td><form method="post" class="ctl" style="flex-wrap:wrap"><input type="hidden" name="csrf" value="{{ csrf() }}"><input type="hidden" name="id" value="{{ a.id }}"><input type="hidden" name="campagne_id" value="{{ camp or '' }}">
+ <label for="d{{ a.id }}" class="aide" style="margin:0;font-size:.8rem">Planté le</label>
+ <input type="date" id="d{{ a.id }}" name="date_plantation" value="{{ a.date_plantation or '' }}" style="width:auto;padding:4px">
+ <select name="statut" aria-label="Statut" style="width:auto;padding:4px">{% for s in ['libre','parraine','remplace'] %}<option {{ 'selected' if s==a.statut }}>{{ s }}</option>{% endfor %}</select>
+ <input type="hidden" name="observations" value="{{ a.observations or '' }}">
+ <button name="action" value="statut" class="sec petit">OK</button>
+ {% if a.statut=='libre' %}<button name="action" value="supprimer" class="danger petit" onclick="return confirm('Retirer cet arbre du stock ?')">Retirer</button>{% endif %}</form></td></tr>
+{% else %}<tr><td colspan="8">Aucun arbre pour cette campagne.</td></tr>{% endfor %}
+</table></div>
+<div class="panel"><h2 style="margin-top:0">Ajouter des arbres au stock</h2>
+<form method="post"><input type="hidden" name="csrf" value="{{ csrf() }}">
+ <div class="chapo" style="margin:0 0 4px"><label for="recherche_lieu" style="margin-top:0">Rechercher un lieu ou une adresse à Corbas
+   <span class="aide">Choisissez une suggestion : le lieu, l'adresse et les coordonnées GPS se remplissent. Vous pouvez ensuite les corriger. Données © les contributeurs d'OpenStreetMap.</span></label>
+   <input type="search" id="recherche_lieu" placeholder="Ex. école Jean Jaurès, parc Bourlione, avenue de Corbetta…">
+   <a id="voir-carte" href="#" target="_blank" rel="noopener" hidden>Vérifier l'emplacement sur la carte (nouvel onglet)</a></div>
+ <div class="row"><div><label for="campagne_id">Campagne</label><select id="campagne_id" name="campagne_id" required>{% for c in campagnes %}<option value="{{ c.id }}" {{ 'selected' if c.id==camp }}>{{ c.nom }}</option>{% endfor %}</select></div>
+ <div><label for="essence_id">Essence</label><select id="essence_id" name="essence_id" required>{% for e in essences %}<option value="{{ e.id }}">{{ e.nom }}</option>{% endfor %}</select></div></div>
+ <div class="row"><div><label for="nombre">Nombre d'arbres</label><input type="number" id="nombre" name="nombre" min="1" max="200" value="1" required></div>
+ <div><label for="annee_plantation">Année de plantation prévue</label><input type="number" id="annee_plantation" name="annee_plantation" value="{{ annee_defaut() }}"></div></div>
+ <div class="row"><div><label for="lieu">Lieu (nom du site)</label><input type="text" id="lieu" name="lieu" required></div>
+ <div><label for="adresse">Adresse</label><input type="text" id="adresse" name="adresse"></div></div>
+ <div class="row"><div><label for="lat">Latitude <span class="aide">ex. 45.6706 ; remplie par la recherche ci-dessus</span></label><input type="text" id="lat" name="lat" required></div>
+ <div><label for="lon">Longitude <span class="aide">ex. 4.8960</span></label><input type="text" id="lon" name="lon" required></div></div>
+ <button>Ajouter au stock</button></form></div>
+<script src="{{ url_for('static', filename='adresse.js') }}"></script>
+<script>
+(function(){
+  if(!window.Autocompletion) return;
+  var f = document.getElementById('lat').form, carte = document.getElementById('voir-carte');
+  Autocompletion({
+    champ: document.getElementById('recherche_lieu'), url: "{{ url_for('api_lieu') }}",
+    titre: function(it){ return it.lieu; }, detail: function(it){ return it.adresse; },
+    vide: "Rien trouvé : saisissez le lieu et les coordonnées à la main.",
+    choisi: function(it){
+      f.elements.lieu.value = it.lieu; f.elements.adresse.value = it.adresse; f.elements.lat.value = it.lat; f.elements.lon.value = it.lon;
+      carte.href = 'https://www.openstreetmap.org/?mlat=' + it.lat + '&mlon=' + it.lon + '#map=18/' + it.lat + '/' + it.lon; carte.hidden = false;
+      return 'Lieu, adresse et coordonnées remplis : vérifiez-les puis ajoutez les arbres.';
+    }
+  });
+})();
+</script>
+{% endblock %}

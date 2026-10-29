@@ -1,0 +1,5 @@
+# Fins de ligne identiques sous Windows et Linux (l'application tourne dans un conteneur Linux)
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.woff binary

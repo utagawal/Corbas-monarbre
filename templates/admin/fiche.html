@@ -1,0 +1,84 @@
+{% extends "admin/base.html" %}
+{% block title %}{{ p.ref }}{% endblock %}
+{% block body %}
+<p><a href="{{ url_for('tableau') }}">← Toutes les demandes</a></p>
+<h1>{{ p.ref }} – {{ p.enfant_prenom }} <span class="badge s-{{ p.statut.split(' ')[0] }}" style="font-size:.9rem">{{ p.statut }}</span></h1>
+{% set etapes = ['Reçue', 'Validée', 'Certificat imprimé', 'Remis'] %}
+{% if p.statut in etapes %}{% set pos = etapes.index(p.statut) %}
+<ol class="stepper" aria-label="Avancement de la demande">{% for e in etapes %}<li class="{{ 'fait' if loop.index0 < pos else ('cur' if loop.index0 == pos) }}"{% if loop.index0 == pos %} aria-current="step"{% endif %}>{{ e }}</li>{% endfor %}</ol>
+{% elif p.statut in ('Complément demandé', "Liste d'attente") %}<p class="chapo" style="margin:0 0 10px">En attente : {{ 'la réponse de la famille' if p.statut == 'Complément demandé' else "un arbre disponible" }}.</p>{% endif %}
+<div class="cols">
+ <div>
+  <div class="panel"><h2 style="margin-top:0">Demande</h2>
+   <dl class="recap" style="display:grid;grid-template-columns:150px 1fr;gap:4px 12px;margin:0">
+    <dt>Reçue le</dt><dd>{{ p.created_at|frdt }}</dd>
+    <dt>Enfant</dt><dd>{{ p.enfant_prenom }} {{ p.enfant_nom }}</dd>
+    <dt>Né(e) le</dt><dd>{{ p.naissance|fr }} – {{ p.lien }}</dd>
+    <dt>Parent</dt><dd>{{ p.parent_nom }} ({{ p.parent_qualite }})</dd>
+    <dt>E-mail</dt><dd>{{ p.email }}</dd><dt>Téléphone</dt><dd>{{ p.tel or '–' }}</dd>
+    <dt>Adresse</dt><dd>{{ p.adresse }}, {{ p.cp }} {{ p.ville }}</dd>
+    <dt>1er choix</dt><dd>{{ e1.nom }}</dd><dt>2e choix</dt><dd>{{ e2.nom if e2 else '–' }}</dd>
+    <dt>Bénévolat</dt><dd>{{ 'Oui' if p.benevolat else 'Non' }}</dd>
+    {% if p.motif %}<dt>Motif / message</dt><dd>{{ p.motif }}</dd>{% endif %}
+   </dl></div>
+  <div class="panel"><h2 style="margin-top:0">Contrôles automatiques</h2>
+   <div class="ctl"><span class="{{ 'ok' if delai_ok else 'ko' }}">{{ '✓ Dans le délai de 12 mois à la date de la demande' if delai_ok else '✗ Naissance de plus de 12 mois à la date de la demande' }}</span></div>
+   <div class="ctl"><span class="{{ 'ko' if doublons else 'ok' }}">{{ '✗ Doublon possible : ' ~ (doublons|join(', ')) if doublons else '✓ Pas de doublon' }}</span></div>
+   <div class="ctl"><span class="{{ 'ok' if stock1 else 'ko' }}">{{ '✓ ' ~ stock1 ~ ' arbre(s) libre(s) du 1er choix' if stock1 else '✗ Plus d\'arbre libre du 1er choix' }}</span></div>
+   <div class="ctl">{% if p.livret and not p.livret_supprime_at %}<span class="ok">✓ Copie du livret de famille reçue</span> <a class="btn petit sec" href="{{ url_for('livret', pid=p.id) }}" target="_blank" rel="noopener">Ouvrir la copie</a>
+   {% elif p.livret %}<span class="ko">Copie supprimée le {{ p.livret_supprime_at|fr }}, récupérable jusqu'au {{ echeance|fr }}</span>
+     {% if session.role == 'admin' %}<a class="btn petit sec" href="{{ url_for('livret', pid=p.id) }}" target="_blank" rel="noopener">Ouvrir</a>{% endif %}
+   {% elif p.livret_supprime_at %}<span class="ok">✓ Copie contrôlée, supprimée le {{ p.livret_supprime_at|fr }} et effacée définitivement</span>
+   {% else %}<span class="ko">✗ Aucune copie du livret</span>{% endif %}</div>
+   <p class="mention">À contrôler sur la copie : prénom, nom et date de naissance de l'enfant, lien avec le déclarant. Au retrait : original du livret et justificatif de domicile.</p>
+   {% if p.livret and not p.livret_supprime_at %}<form method="post" action="{{ url_for('action', pid=p.id) }}" onsubmit="return confirm('Contrôle terminé ? La copie sera supprimée et restera récupérable par un administrateur pendant 6 mois.')"><input type="hidden" name="csrf" value="{{ csrf() }}"><input type="hidden" name="action" value="supprimer_livret"><button class="sec petit">Contrôle fait : supprimer la copie</button></form>
+   {% elif p.livret and session.role == 'admin' %}<form method="post" action="{{ url_for('action', pid=p.id) }}"><input type="hidden" name="csrf" value="{{ csrf() }}"><input type="hidden" name="action" value="restaurer_livret"><button class="sec petit">Restaurer la copie</button></form>{% endif %}
+  </div>
+  <div class="panel"><h2 style="margin-top:0">Notes internes</h2>
+   {% if 'notes' in actions %}<form method="post" action="{{ url_for('action', pid=p.id) }}"><input type="hidden" name="csrf" value="{{ csrf() }}"><input type="hidden" name="action" value="notes">
+    <textarea name="notes" aria-label="Notes internes" maxlength="4000">{{ p.notes or '' }}</textarea><p><button class="sec petit">Enregistrer</button></p></form>
+   {% else %}<p style="margin:0">–</p>{% endif %}</div>
+ </div>
+ <div>
+  {% if not p.anonymise %}
+  <div class="panel"><h2 style="margin-top:0">Décision</h2>
+   {% if 'valider' in actions %}
+   <form method="post" action="{{ url_for('action', pid=p.id) }}"{% if not delai_ok or doublons %} onsubmit="return confirm('Un contrôle automatique est en alerte (délai dépassé ou doublon possible). Valider quand même ?')"{% endif %}><input type="hidden" name="csrf" value="{{ csrf() }}"><input type="hidden" name="action" value="valider">
+    <label for="arbre_id">{{ "Changer l'arbre affecté" if arbre else 'Affecter un arbre' }}</label>
+    <select id="arbre_id" name="arbre_id" required>
+     <option value="">Choisir un arbre libre…</option>
+     {% for a in dispo %}<option value="{{ a.id }}" {{ 'selected' if p.arbre_id==a.id or (not p.arbre_id and loop.first and a.essence_id==p.essence1_id and a.campagne_id==p.campagne_id) }}>{{ a.code }} – {{ a.essence }} – {{ a.lieu }}{% if a.essence_id==p.essence1_id %} (1er choix){% elif a.essence_id==p.essence2_id %} (2e choix){% else %} (autre essence){% endif %}{% if a.campagne_id != p.campagne_id %} – {{ a.campagne }}{% endif %}</option>{% endfor %}
+    </select>
+    <p><button>{{ 'Réaffecter' if arbre else 'Valider et affecter' }}</button></p></form>
+   {% endif %}
+   {% if 'refuser' in actions %}
+   <hr>
+   <form method="post" action="{{ url_for('action', pid=p.id) }}"><input type="hidden" name="csrf" value="{{ csrf() }}">
+    <label for="motif">Message à la famille <span class="aide">Obligatoire pour un refus ou une demande de complément. Il figure dans l'e-mail envoyé.</span></label><textarea id="motif" name="motif" maxlength="2000"></textarea>
+    <p>{% if 'complement' in actions %}<button name="action" value="complement" class="sec petit">Demander un complément</button> {% endif %}
+       <button name="action" value="refuser" class="danger petit" onclick="return confirm('Refuser cette demande ? La famille sera prévenue et la copie du livret supprimée.')">Refuser</button>
+       {% if 'attente' in actions %}<button name="action" value="attente" class="sec petit">Liste d'attente</button>{% endif %}</p></form>
+   {% endif %}
+   {% if arbre %}
+    <hr><b>Arbre affecté :</b> {{ arbre.code }} – {{ arbre.essence }}<br>{{ arbre.lieu }}{% if arbre.adresse %}, {{ arbre.adresse }}{% endif %}<br>
+    GPS {{ arbre.lat }}, {{ arbre.lon }}
+    <p><a class="btn" href="{{ url_for('certificat_pdf', pid=p.id) }}" target="_blank" rel="noopener">Générer le certificat PDF</a></p>
+    {% if 'remis' in actions %}
+     <form method="post" action="{{ url_for('action', pid=p.id) }}"><input type="hidden" name="csrf" value="{{ csrf() }}"><input type="hidden" name="action" value="remis"><button>Marquer comme remis à la famille</button></form>
+    {% endif %}
+   {% endif %}
+   {% if 'annuler' in actions %}
+    <form method="post" action="{{ url_for('action', pid=p.id) }}" onsubmit="return confirm('Annuler cette demande ? L\'arbre redeviendra disponible et la copie du livret sera supprimée.')" style="margin-top:12px"><input type="hidden" name="csrf" value="{{ csrf() }}"><input type="hidden" name="action" value="annuler"><button class="sec petit">Annuler la demande</button></form>
+   {% endif %}
+   {% if p.statut in ('Refusée', 'Annulée') %}<p style="margin:0">Cette demande est clôturée. La famille peut en déposer une nouvelle si elle le souhaite.</p>{% endif %}
+  </div>
+  <div class="panel"><h2 style="margin-top:0">Historique</h2>
+   <p style="margin:0">Validée le {{ p.valide_at|frdt }}{% if p.agent %} par {{ p.agent }}{% endif %}<br>Certificat imprimé le {{ p.imprime_at|frdt }}<br>Remis le {{ p.remis_at|frdt }}</p></div>
+  {% if session.role == 'admin' %}
+  <div class="panel"><h2 style="margin-top:0">Données personnelles</h2>
+   <form method="post" action="{{ url_for('action', pid=p.id) }}" onsubmit="return confirm('Effacer définitivement les données personnelles de cette fiche, la copie du livret et les courriers associés ?')"><input type="hidden" name="csrf" value="{{ csrf() }}"><input type="hidden" name="action" value="anonymiser"><button class="danger petit">Anonymiser (demande RGPD)</button></form></div>
+  {% endif %}
+  {% else %}<div class="panel">Fiche anonymisée.</div>{% endif %}
+ </div>
+</div>
+{% endblock %}

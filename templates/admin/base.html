@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>{% block title %}Administration{% endblock %} – {{ DISPOSITIF.nom }}</title>
+<link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='marque.svg') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="admin">
+<a class="skip" href="#contenu">Aller au contenu</a>
+<header class="top"><nav class="wrap large" aria-label="Navigation principale">
+  <b><img class="marque-admin" src="{{ url_for('static', filename='marque-blanche.svg') }}" alt="">{{ DISPOSITIF.nom }}</b>
+  {% macro lien(endpoint, texte, actifs=none) %}<a href="{{ url_for(endpoint) }}"{% if request.endpoint in (actifs or (endpoint,)) %} class="on" aria-current="page"{% endif %}>{{ texte }}</a>{% endmacro %}
+  {{ lien('tableau', 'Demandes', ('tableau', 'fiche')) }}
+  {% if session.role == 'admin' %}
+  {{ lien('campagnes', 'Campagnes') }}
+  {{ lien('essences', 'Essences') }}
+  {{ lien('photos_admin', 'Photos') }}
+  {{ lien('arbres', 'Arbres') }}
+  {{ lien('utilisateurs', 'Utilisateurs') }}
+  {{ lien('parametres', 'Notifications') }}
+  {% endif %}
+  {{ lien('mails', 'Courriers') }}
+  <a href="{{ url_for('export_xlsx') }}">Export Excel</a>
+  <span class="sp"></span>
+  <a href="{{ url_for('mot_de_passe') }}" class="moi{% if request.endpoint == 'mot_de_passe' %} on{% endif %}"{% if request.endpoint == 'mot_de_passe' %} aria-current="page"{% endif %} title="Changer mon mot de passe">{{ session.email }}</a><a href="{{ url_for('logout') }}">Déconnexion</a>
+</nav></header>
+<main class="wrap large" id="contenu">
+{% with msgs = get_flashed_messages(with_categories=true) %}{% for c, m in msgs %}<div class="flash {{ c }}" role="{{ 'alert' if c == 'err' else 'status' }}">{{ m }}</div>{% endfor %}{% endwith %}
+{% block body %}{% endblock %}
+</main>
+</body>
+</html>
