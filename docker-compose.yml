@@ -4,7 +4,7 @@ services:
     restart: unless-stopped
     env_file: .env
     environment:
-      TRUST_PROXY: "1"   # derrière Caddy : adresse IP réelle des visiteurs pour la limitation des envois
+      TRUST_PROXY: "1"   # derrière Caddy ou nginx : adresse IP réelle des visiteurs pour la limitation des envois
     volumes:
       - parrainage-data:/data
     expose:
@@ -12,6 +12,8 @@ services:
   caddy:
     image: caddy:2
     restart: unless-stopped
+    environment:
+      DOMAINE: ${DOMAINE:-parrainage.example.fr}   # lu dans .env
     ports:
       - "80:80"
       - "443:443"
