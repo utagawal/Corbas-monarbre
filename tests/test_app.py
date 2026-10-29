@@ -24,7 +24,10 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import app  # noqa: E402
 import certificat  # noqa: E402
+import plantation  # noqa: E402
+from contextlib import redirect_stderr, redirect_stdout  # noqa: E402
 from openpyxl import load_workbook  # noqa: E402
+from unittest import mock  # noqa: E402
 from werkzeug.security import check_password_hash, generate_password_hash  # noqa: E402
 
 
@@ -34,6 +37,7 @@ def _hors_ligne(*a, **k):
 
 certificat.requests.get = _hors_ligne  # pas d'accès réseau pendant les tests : la carte utilise son fond de secours
 PDF = (b"%PDF-1.4\n%test\n", "livret.pdf")
+FICHIER_PLAN = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "donnees", "plantation-automne-2026.json")
 MDP = "motdepasse-test-1"
 
 
@@ -1376,7 +1380,8 @@ class TestTraitement(Base):
         self.assertEqual(ws["E2"].data_type, "s")
         self.assertEqual(ws["T2"].value, "COR-2026-001")
         self.assertEqual(wb["Arbres"].max_row, 7)
-        self.assertEqual(wb["Arbres"]["L2"].value, ws["A2"].value)
+        self.assertEqual([c.value for c in wb["Arbres"][1]][3:6], ["Nom latin", "Variété", "Taille"])
+        self.assertEqual(wb["Arbres"]["N2"].value, ws["A2"].value)
         self.assertEqual(wb["Essences"]["A2"].value, "Chêne")
 
     def test_courriers_sans_smtp(self):
@@ -1487,6 +1492,196 @@ class TestParametrage(Base):
         self.assertIn("supprimé du stock", self.poster(self.c, "/admin/arbres", action="supprimer", id=a2))
         self.assertEqual(self.c.get("/admin/arbres?campagne=1").status_code, 200)
         self.assertEqual(self.c.get("/admin/arbres").status_code, 200)
+
+    def test_arbres_variete_taille_et_modification(self):
+        h = self.poster(self.c, "/admin/arbres", campagne_id="1", essence_id="1", nombre="2", lieu="Parc", lat="45.67", lon="4.9",
+                        variete="Kanzan", taille=" Tige  16/18 ")
+        self.assertIn("2 arbre(s) ajouté(s)", h)
+        self.assertIn("'Kanzan'", h)
+        a = self.un("SELECT * FROM arbres WHERE code='COR-2026-007'")
+        self.assertEqual((a["variete"], a["taille"]), ("Kanzan", "Tige 16/18"))
+        base = dict(action="modifier", id=a["id"], lieu="Square Lachenal", adresse="Corbas", lat="45,66184", lon="4.89495", variete="Minaret", taille="Tige 18/20")
+        self.assertIn("Arbre modifié", self.poster(self.c, "/admin/arbres", **base))
+        a = self.un("SELECT * FROM arbres WHERE id=?", a["id"])
+        self.assertEqual((a["lieu"], a["adresse"], a["lat"], a["lon"], a["variete"], a["taille"]),
+                         ("Square Lachenal", "Corbas", 45.66184, 4.89495, "Minaret", "Tige 18/20"))
+        self.assertEqual(self.un("SELECT lieu FROM arbres WHERE code='COR-2026-008'")["lieu"], "Parc")  # les autres arbres ne bougent pas
+        for kw, msg in ((dict(lieu=" "), "Vérifiez"), (dict(lat="48.9"), "pas à Corbas"), (dict(lon="abc"), "Vérifiez"),
+                        (dict(lat="nan"), "Vérifiez"), (dict(id="9999"), "Vérifiez")):
+            self.assertIn(msg, self.poster(self.c, "/admin/arbres", **{**base, **kw}), kw)
+        self.assertEqual(self.un("SELECT lieu FROM arbres WHERE id=?", a["id"])["lieu"], "Square Lachenal")  # une saisie refusée ne change rien
+        c = self.connecte("agent@test.local")
+        self.assertEqual(c.post("/admin/arbres", data=dict(csrf=self.jeton(c), **base)).status_code, 403)  # réservé à l'administrateur
+
+    def test_migration_des_bases_existantes(self):
+        chemin = os.path.join(TMP, "ancienne.db")
+        con = sqlite3.connect(chemin)
+        con.executescript("CREATE TABLE arbres(id INTEGER PRIMARY KEY, code TEXT UNIQUE, campagne_id INTEGER, essence_id INTEGER, lieu TEXT, "
+                          "adresse TEXT, lat REAL, lon REAL, annee_plantation INTEGER, date_plantation TEXT, statut TEXT DEFAULT 'libre', "
+                          "observations TEXT); INSERT INTO arbres(code,lieu,lat,lon) VALUES('COR-2025-001','Ancien site',45.67,4.9);")
+        con.close()
+        ancien, app.DB_PATH = app.DB_PATH, chemin
+        try:
+            with mock.patch.dict(os.environ, ADMIN_PASSWORD=MDP):
+                app.init_db()
+        finally:
+            app.DB_PATH = ancien
+        con = sqlite3.connect(chemin)
+        self.assertTrue({"variete", "taille"} <= {r[1] for r in con.execute("PRAGMA table_info(arbres)")})
+        self.assertEqual(con.execute("SELECT lieu, variete, taille FROM arbres").fetchall(), [("Ancien site", None, None)])
+        con.close()
+
+
+class TestPlanPlantation(Base):
+    """Plan de plantation de l'automne 2026 (donnees/plantation-automne-2026.json) et son chargeur (plantation.py)."""
+
+    def setUp(self):
+        super().setUp()
+        with open(FICHIER_PLAN, encoding="utf-8") as fh:
+            self.plan = json.load(fh)
+        self.c = self.connecte()
+
+    def charge(self, **kw):
+        con = sqlite3.connect(app.DB_PATH)
+        try:
+            return plantation.charger(con, self.plan, **kw)
+        finally:
+            con.close()
+
+    def nombre(self, table):
+        return self.un(f"SELECT COUNT(*) n FROM {table}")["n"]
+
+    def test_le_fichier_livre_est_correct(self):
+        self.assertEqual(plantation.controler(self.plan), [])
+        par_site = {s["lieu"]: sum(l.get("quantite", 1) for l in s["arbres"]) for s in self.plan["sites"]}
+        self.assertEqual(sorted(par_site.values()), [1, 1, 1, 1, 5, 5, 6, 7, 14])  # les neuf sites de l'étude
+        self.assertEqual(sum(par_site.values()), 41)
+        self.assertEqual(len(self.plan["essences"]), 24)
+        utilisees = {app.norm(l["essence"]) for s in self.plan["sites"] for l in s["arbres"]}
+        self.assertEqual(utilisees, {app.norm(e["latin"]) for e in self.plan["essences"]})  # pas d'essence sans arbre
+        for e in self.plan["essences"]:
+            blocs = [(titre, e[k]) for titre, k in (("a", "symbole"), ("b", "caracteristiques"), ("c", "role"))]
+            self.assertTrue(all(e[k] for k in ("nom", "latin", "resume", "symbole", "caracteristiques", "role", "couleur")), e["nom"])
+            # les trois textes tiennent sur le certificat à la taille normale (10 pt) : ils ne sont ni réduits ni coupés
+            self.assertEqual(certificat._taille_colonne(blocs, 380, 230), 10.0, e["nom"])
+
+    def test_chargement_complet(self):
+        b = self.charge()
+        self.assertEqual((b["creee"], b["arbres"], b["essences_creees"], b["essences_reprises"]), (True, 41, 24, 0))
+        camp = self.un("SELECT * FROM campagnes WHERE nom='Automne 2026'")
+        self.assertEqual((camp["annee"], camp["ouverte"]), (2026, 0))  # créée fermée : ouverte par l'administrateur
+        arbres = self.sql("SELECT * FROM arbres WHERE campagne_id=? ORDER BY code", camp["id"])
+        self.assertEqual((arbres[0]["code"], arbres[-1]["code"], len({a["code"] for a in arbres})), ("COR-2026-007", "COR-2026-047", 41))
+        la0, la1, lo0, lo1 = app.CADRE_CORBAS
+        for a in arbres:
+            self.assertTrue(la0 <= a["lat"] <= la1 and lo0 <= a["lon"] <= lo1, a["code"])
+            self.assertEqual((a["statut"], a["annee_plantation"]), ("libre", 2026))
+            self.assertTrue(a["taille"] and a["lieu"], a["code"])
+        self.assertEqual(len({(a["lat"], a["lon"]) for a in arbres}), 41)  # deux arbres ne sont jamais au même point
+        k = self.un("SELECT * FROM arbres WHERE variete='Kanzan' AND lieu LIKE 'Passage%'")
+        self.assertEqual((k["taille"], k["adresse"]), ("Tige 16/18", "Corbas"))
+        self.assertEqual(self.nombre("essences"), 3 + 24)
+        self.assertEqual(self.un("SELECT COUNT(*) n FROM arbres WHERE lieu LIKE 'Parc de la crèche%'")["n"], 14)
+        self.assertEqual(self.un("SELECT COUNT(*) n FROM arbres WHERE observations='Côté parking'")["n"], 4)
+        self.assertEqual(self.un("SELECT COUNT(*) n FROM arbres a JOIN essences e ON e.id=a.essence_id WHERE e.latin='Styphnolobium japonicum'")["n"], 6)
+        self.assertEqual(self.un("SELECT taille FROM arbres WHERE variete='Fuyu'")["taille"], "1/2 tige 12/14")
+
+    def test_formulaire_public_et_certificat(self):
+        self.charge()
+        self.sql("UPDATE campagnes SET ouverte=0 WHERE id=1")
+        self.sql("UPDATE campagnes SET ouverte=1, ouverture='2000-01-01', fermeture='2100-01-01' WHERE nom='Automne 2026'")
+        page = html.unescape(self.pub.get("/").get_data(as_text=True))
+        for nom in ("Lilas des Indes", "Chêne à feuilles de châtaignier", "Plaqueminier", "Platane d'Orient", "Sophora du Japon"):
+            self.assertIn(nom, page)
+        self.assertIn("Plus que 1", page)  # la plupart des essences n'ont qu'un arbre
+        self.assertNotIn("Plus que 6", page)
+        self.assertNotIn("Tilleul", page)  # les essences de l'exemple n'ont plus d'arbre dans cette campagne : jamais proposées
+        # une famille choisit le Cerisier à fleurs ; l'agent lui affecte l'arbre 'Kanzan' ; le certificat porte la variété
+        cerisier = self.un("SELECT id FROM essences WHERE latin='Prunus serrulata'")["id"]
+        self.assertEqual(self.envoyer(essence1=str(cerisier), essence2=None).status_code, 302)
+        arbre = self.un("SELECT id FROM arbres WHERE essence_id=? AND variete='Kanzan' ORDER BY code", cerisier)["id"]
+        self.assertIn("Demande validée", self.agir(self.c, 1, "valider", arbre_id=arbre))
+        with mock.patch.object(certificat, "generer", return_value=b"%PDF-1.4 essai") as faux:
+            self.assertEqual(self.c.get("/admin/demande/1/certificat.pdf").status_code, 200)
+        self.assertEqual(faux.call_args[0][0]["essence_latin"], "Prunus serrulata 'Kanzan'")
+        self.assertEqual(faux.call_args[0][0]["essence_nom"], "Cerisier à fleurs")
+        fiche = html.unescape(self.c.get("/admin/demande/1").get_data(as_text=True))
+        self.assertIn("'Kanzan'", fiche)
+        # le vrai certificat, pour l'essence au nom le plus long
+        long = self.un("SELECT a.id FROM arbres a JOIN essences e ON e.id=a.essence_id WHERE e.latin='Quercus castaneifolia' ORDER BY a.code")["id"]
+        self.sql("UPDATE parrainages SET statut='Reçue', arbre_id=NULL, imprime_at=NULL WHERE id=1")
+        self.sql("UPDATE arbres SET statut='libre'")
+        self.assertIn("Demande validée", self.agir(self.c, 1, "valider", arbre_id=long))
+        pdf = self.c.get("/admin/demande/1/certificat.pdf")
+        self.assertEqual((pdf.status_code, pdf.data[:5]), (200, b"%PDF-"))
+
+    def test_refus_si_la_campagne_a_deja_des_arbres(self):
+        self.charge()
+        avant = (self.nombre("arbres"), self.nombre("essences"))
+        with self.assertRaises(plantation.ErreurPlan) as e:
+            self.charge()
+        self.assertIn("--remplacer", str(e.exception))
+        self.assertEqual((self.nombre("arbres"), self.nombre("essences")), avant)  # rien n'a changé
+
+    def test_remplacer_garde_les_arbres_parraines(self):
+        self.cree()
+        self.agir(self.c, 1, "valider", arbre_id=self.un("SELECT id FROM arbres WHERE code='COR-2026-001'")["id"])
+        b = self.charge(campagne="Test 2026", remplacer=True)
+        self.assertEqual((b["creee"], b["retires"], b["gardes"], b["arbres"]), (False, 5, 1, 41))
+        self.assertEqual(self.un("SELECT statut FROM arbres WHERE code='COR-2026-001'")["statut"], "parraine")
+        self.assertEqual(self.un("SELECT COUNT(*) n FROM arbres WHERE campagne_id=1")["n"], 42)
+        self.assertEqual(self.un("SELECT arbre_id FROM parrainages")["arbre_id"], self.un("SELECT id FROM arbres WHERE code='COR-2026-001'")["id"])
+        # l'essence « Tilleul » n'a plus d'arbre : désactivée ; « Chêne » garde son arbre parrainé : reste active
+        self.assertEqual(b["desactivees"], 1)
+        self.assertEqual(self.un("SELECT actif FROM essences WHERE nom='Tilleul'")["actif"], 0)
+        self.assertEqual(self.un("SELECT actif FROM essences WHERE nom='Chêne'")["actif"], 1)
+
+    def test_essence_connue_reprise_avec_ses_textes(self):
+        self.sql("INSERT INTO essences(id,nom,latin,resume,symbole,caracteristiques,role,couleur,actif) "
+                 "VALUES(10,'Chêne vert (texte maison)','quercus ilex','Mon résumé','','','','#112233',0)")
+        b = self.charge()
+        self.assertEqual((b["essences_creees"], b["essences_reprises"]), (23, 1))
+        e = self.un("SELECT * FROM essences WHERE id=10")
+        self.assertEqual((e["nom"], e["resume"], e["actif"], e["couleur"]), ("Chêne vert (texte maison)", "Mon résumé", 1, "#112233"))
+        self.assertIn("Le chêne vert symbolise", e["symbole"])  # champ vide complété, champ rempli jamais écrasé
+        self.assertEqual(self.nombre("essences"), 3 + 1 + 23)  # pas de doublon « Quercus ilex »
+        self.assertEqual(self.un("SELECT COUNT(*) n FROM arbres WHERE essence_id=10")["n"], 1)
+
+    def test_plan_incorrect_rien_n_est_ecrit(self):
+        avant = [self.nombre(t) for t in ("arbres", "essences", "campagnes")]
+        self.plan["sites"][0]["lat"] = 48.85  # Paris
+        self.plan["sites"][1]["arbres"][0]["essence"] = "Inconnue inconnue"
+        self.plan["sites"][2]["arbres"][0]["quantite"] = 0
+        self.plan["sites"][3]["arbres"][0]["lat"] = 45.66  # une position sans l'autre
+        self.plan["essences"][0]["couleur"] = "vert"
+        self.plan["essences"].append(dict(self.plan["essences"][1]))
+        with self.assertRaises(plantation.ErreurPlan) as e:
+            self.charge()
+        for morceau in ("hors de Corbas", "Inconnue inconnue", "quantité", "couleur", "deux fois", "incorrectes"):
+            self.assertIn(morceau, str(e.exception))
+        self.assertEqual([self.nombre(t) for t in ("arbres", "essences", "campagnes")], avant)
+        self.assertTrue(plantation.controler({}))  # un fichier vide est refusé lui aussi
+
+    def test_chargement_interrompu_est_annule(self):
+        avant = [self.nombre(t) for t in ("arbres", "essences", "campagnes")]
+        self.sql("CREATE TRIGGER panne BEFORE INSERT ON arbres WHEN NEW.code='COR-2026-030' BEGIN SELECT RAISE(ABORT, 'panne'); END")
+        self.addCleanup(self.sql, "DROP TRIGGER IF EXISTS panne")
+        with self.assertRaises(sqlite3.DatabaseError):
+            self.charge()
+        self.assertEqual([self.nombre(t) for t in ("arbres", "essences", "campagnes")], avant)  # ni campagne, ni essence, ni arbre à moitié
+
+    def test_commande(self):
+        sortie, erreur = io.StringIO(), io.StringIO()
+        with redirect_stdout(sortie), redirect_stderr(erreur):
+            self.assertEqual(plantation.main([FICHIER_PLAN]), 0)
+        self.assertIn("41 arbres ajoutés", sortie.getvalue())
+        self.assertIn("FERMÉE", sortie.getvalue())
+        with redirect_stdout(io.StringIO()), redirect_stderr(erreur):
+            self.assertEqual(plantation.main([FICHIER_PLAN]), 1)  # déjà chargé
+            self.assertEqual(plantation.main([os.path.join(TMP, "absent.json")]), 1)
+        self.assertIn("--remplacer", erreur.getvalue())
+        self.assertIn("illisible", erreur.getvalue())
+        self.assertEqual(self.nombre("arbres"), 6 + 41)
 
 
 if __name__ == "__main__":

@@ -47,6 +47,21 @@ sudo cp deploy/nginx/MonArbre.conf /etc/nginx/snippets/MonArbre.conf
 
 Puis ajouter `include /etc/nginx/snippets/MonArbre.conf;` dans le bloc `server { listen 443 … }` du domaine, tester et recharger : `sudo nginx -t && sudo systemctl reload nginx`. On copie le fichier (et non un lien symbolique) : nginx, qui tourne avec les droits root, ne doit pas relire un fichier modifiable par un autre compte.
 
+## Charger le plan de plantation
+
+Le plan de plantation de l'automne 2026 (24 essences, 9 sites, 41 arbres, avec variété et taille de chaque arbre) est livré dans [donnees/plantation-automne-2026.json](donnees/plantation-automne-2026.json) et se charge d'une commande, après le démarrage de l'application :
+
+```bash
+docker compose exec app python plantation.py donnees/plantation-automne-2026.json
+```
+
+- La campagne « Automne 2026 » est créée **fermée** : l'administrateur l'ouvre (menu Campagnes) quand les inscriptions peuvent commencer. Tous les arbres arrivent « libres » : « Retirer » (menu Arbres) écarte ceux qui ne sont pas destinés au parrainage.
+- Les essences sont reconnues par leur **nom latin** : une essence déjà présente garde ses textes et sa photo ; les autres sont créées avec les textes du fichier, à relire et corriger dans le menu Essences (les photos s'y ajoutent aussi).
+- Le chargement est « tout ou rien » : une faute dans le fichier (essence inconnue, coordonnées hors de Corbas, quantité absurde…) est signalée et rien n'est écrit. Sur une campagne qui contient déjà des arbres, la commande refuse d'agir ; `--remplacer` retire ses arbres libres (jamais un arbre parrainé), charge ceux du fichier et désactive les essences qui n'ont plus aucun arbre. `--campagne "Nom"` cible une campagne existante.
+- **Format du fichier** : `campagne` (nom, année), `essences` (nom, nom latin, résumé, trois textes, couleur du certificat) et `sites` (lieu, adresse, latitude, longitude, puis `arbres` : essence = nom latin, `variete`, `taille`, `quantite`, et au besoin `note` ou une position `lat`/`lon` propre à la ligne). Les arbres d'un même point sont décalés de quelques mètres pour ne pas se superposer sur la carte du certificat.
+- Les coordonnées des sites sont **approximatives** (repérées sur OpenStreetMap d'après les noms des lieux) : après la plantation, corrigez la position exacte de chaque arbre avec « Modifier ».
+- Pour un autre plan (campagne suivante), copiez ce fichier et adaptez-le.
+
 ## Utilisation
 
 | Qui | Où | Quoi |
@@ -54,7 +69,7 @@ Puis ajouter `include /etc/nginx/snippets/MonArbre.conf;` dans le bloc `server {
 | Administrateur | Campagnes | Créer une campagne, ouvrir/fermer les inscriptions |
 | Administrateur | Essences | Nom, texte « ce qu'il représente », caractéristiques, rôle, couleur du certificat, photo affichée sur la carte de l'essence dans le formulaire |
 | Administrateur | Photos | Remplacer la photo d'accueil et celle de la page de confirmation du formulaire (recadrées automatiquement), ou rétablir la photo d'origine |
-| Administrateur | Arbres | Saisir le stock d'arbres **à planter** (essence, lieu, GPS, année). Une recherche de lieu ou d'adresse à Corbas (Photon / OpenStreetMap) remplit le lieu, l'adresse et les coordonnées GPS ; un lien permet de vérifier l'emplacement sur la carte. Seuls les arbres libres sont proposés aux familles |
+| Administrateur | Arbres | Saisir le stock d'arbres **à planter** (essence, variété, taille, lieu, GPS, année). Une recherche de lieu ou d'adresse à Corbas (Photon / OpenStreetMap) remplit le lieu, l'adresse et les coordonnées GPS ; un lien permet de vérifier l'emplacement sur la carte. « Modifier » corrige le lieu, le GPS, la variété et la taille d'un arbre existant (même parrainé : le certificat suit). Seuls les arbres libres sont proposés aux familles |
 | Administrateur | Utilisateurs | Créer les comptes agents / administrateurs, réinitialiser un mot de passe |
 | Administrateur | Notifications | Choisir les adresses (une ou plusieurs) prévenues par e-mail à chaque nouvelle demande, et envoyer un message de test |
 | Agent | Demandes | Compteurs cliquables (à traiter, à imprimer, à remettre, copies de livret à supprimer), recherche (nom, e-mail, référence). Les demandes à traiter s'affichent **les plus anciennes en premier** : les arbres sont en nombre limité, on traite dans l'ordre d'arrivée |
@@ -132,4 +147,5 @@ python -m unittest discover -s tests
 - Le certificat utilise Helvetica (le formulaire embarque Roboto, comme le site de la ville).
 - Les polices du certificat ne couvrent que l'alphabet occidental : un prénom avec d'autres caractères (ex. polonais, turc) est translittéré (« Łukasz » devient « Lukasz »).
 - L'anonymisation conserve le prénom de l'enfant et sa date de naissance sur la fiche de l'arbre (choix de conception : la fiche de l'arbre reste) ; à faire valider par le DPO.
-- Les sites de plantation du jeu d'exemple sont indicatifs (coordonnées approximatives) : ils viennent d'une étude, pas d'un engagement.
+- Les sites de plantation du jeu d'exemple (`DEMO=1`) sont indicatifs : ils viennent d'une étude, pas d'un engagement. Ceux du plan de l'automne 2026 ont des coordonnées approximatives, à corriger après plantation.
+- Les textes des essences du plan (symbolique, caractéristiques) sont une première rédaction à faire relire par le service des espaces verts.

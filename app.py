@@ -143,7 +143,7 @@ CREATE TABLE IF NOT EXISTS essences(id INTEGER PRIMARY KEY, nom TEXT NOT NULL, l
   symbole TEXT, caracteristiques TEXT, role TEXT, couleur TEXT DEFAULT '#2e7d32', photo_url TEXT, actif INTEGER DEFAULT 1);
 CREATE TABLE IF NOT EXISTS arbres(id INTEGER PRIMARY KEY, code TEXT UNIQUE, campagne_id INTEGER REFERENCES campagnes(id),
   essence_id INTEGER REFERENCES essences(id), lieu TEXT, adresse TEXT, lat REAL, lon REAL, annee_plantation INTEGER,
-  date_plantation TEXT, statut TEXT DEFAULT 'libre', observations TEXT);
+  date_plantation TEXT, statut TEXT DEFAULT 'libre', observations TEXT, variete TEXT, taille TEXT);
 CREATE TABLE IF NOT EXISTS parrainages(id INTEGER PRIMARY KEY, ref TEXT UNIQUE, created_at TEXT, campagne_id INTEGER,
   statut TEXT, enfant_prenom TEXT, enfant_nom TEXT, naissance TEXT, lien TEXT, parent_qualite TEXT, parent_nom TEXT,
   email TEXT, tel TEXT, adresse TEXT, cp TEXT, ville TEXT, essence1_id INTEGER, essence2_id INTEGER, benevolat INTEGER,
@@ -157,7 +157,7 @@ CREATE INDEX IF NOT EXISTS idx_parr_arbre ON parrainages(arbre_id);
 CREATE INDEX IF NOT EXISTS idx_arbres_camp ON arbres(campagne_id, statut);
 """
 # colonnes ajoutées après la première version : migration des bases existantes
-MIGRATIONS = (("parrainages", "livret"), ("parrainages", "livret_supprime_at"), ("mails", "erreur"))
+MIGRATIONS = (("parrainages", "livret"), ("parrainages", "livret_supprime_at"), ("mails", "erreur"), ("arbres", "variete"), ("arbres", "taille"))
 
 
 # ---------------------------------------------------------------- temps (heure de Paris, pas celle du serveur)
@@ -280,8 +280,14 @@ def frdt(d):
         return str(d)
 
 
+def latin_complet(latin, variete):
+    """« Prunus serrulata » et « Kanzan » donnent « Prunus serrulata 'Kanzan' » (le nom de la variété cultivée s'écrit entre apostrophes)."""
+    return " ".join(x for x in (latin, f"'{variete}'" if variete else "") if x)
+
+
 app.jinja_env.filters["fr"] = fr
 app.jinja_env.filters["frdt"] = frdt
+app.jinja_env.filters["variete"] = lambda nom: f"'{nom}'" if nom else ""
 app.jinja_env.globals["annee_defaut"] = lambda: aujourdhui().year
 
 
@@ -1404,13 +1410,13 @@ def certificat_pdf(pid):
     p = detail(pid)
     if not p["arbre_id"]:
         abort(409)
-    a = q1("SELECT a.code, a.lieu, a.adresse, a.lat, a.lon, a.date_plantation, a.annee_plantation, e.nom, e.latin, e.symbole, "
+    a = q1("SELECT a.code, a.lieu, a.adresse, a.lat, a.lon, a.date_plantation, a.annee_plantation, a.variete, e.nom, e.latin, e.symbole, "
            "e.caracteristiques, e.role, e.couleur FROM arbres a JOIN essences e ON e.id=a.essence_id WHERE a.id=?", p["arbre_id"])
     # le certificat porte la date de sa première impression, même s'il est réimprimé plus tard
     emis = p["imprime_at"] or now()
     pdf = certificat.generer(dict(
         ref=p["ref"], prenom=p["enfant_prenom"], naissance_fr=fr(p["naissance"]), date_fr=fr(emis),
-        arbre_code=a["code"], essence_nom=a["nom"], essence_latin=a["latin"], symbole=a["symbole"],
+        arbre_code=a["code"], essence_nom=a["nom"], essence_latin=latin_complet(a["latin"], a["variete"]), symbole=a["symbole"],
         caracteristiques=a["caracteristiques"], role=a["role"], couleur=a["couleur"], lieu=a["lieu"], adresse=a["adresse"],
         lat=a["lat"], lon=a["lon"], plantation_fr=fr(a["date_plantation"]), annee_plantation=a["annee_plantation"]),
         os.path.join(DATA, "tuiles"), dict(MAIRIE, logo=chemin_logo(), logo_dispositif=LOGO_DISPOSITIF))
@@ -1560,6 +1566,22 @@ def arbres():
                    statut, plante, f.get("observations", "")[:1000], a["id"])
                 flash("Arbre mis à jour.", "ok")
             return redirect(retour)
+        if f.get("action") == "modifier":
+            a = q1("SELECT * FROM arbres WHERE id=?", f.get("id", type=int))
+            try:
+                lieu = ligne(f.get("lieu"))[:120]
+                if not a or not lieu:
+                    raise ValueError
+                lat, lon = lire_coordonnees(f)
+            except (KeyError, ValueError, TypeError):
+                flash("Vérifiez les champs : lieu et coordonnées GPS (ex. 45.6706 et 4.8960).", "err")
+            except OverflowError:
+                flash("Ces coordonnées ne sont pas à Corbas. Vérifiez la latitude (environ 45.67) et la longitude (environ 4.90).", "err")
+            else:
+                ex("UPDATE arbres SET lieu=?, adresse=?, lat=?, lon=?, variete=?, taille=? WHERE id=?",
+                   lieu, ligne(f.get("adresse"))[:200], lat, lon, ligne(f.get("variete"))[:60], ligne(f.get("taille"))[:40], a["id"])
+                flash("Arbre modifié.", "ok")
+            return redirect(retour)
         try:
             camp = int(f["campagne_id"]); ess = int(f["essence_id"])
             nb = int(f.get("nombre") or 1)
@@ -1578,9 +1600,10 @@ def arbres():
             return redirect(url_for("arbres"))
         n = prochain_numero("arbres", f"COR-{annee_c}")
         for i in range(nb):
-            db().execute("INSERT INTO arbres(code,campagne_id,essence_id,lieu,adresse,lat,lon,annee_plantation) VALUES(?,?,?,?,?,?,?,?)",
+            db().execute("INSERT INTO arbres(code,campagne_id,essence_id,lieu,adresse,lat,lon,annee_plantation,variete,taille) VALUES(?,?,?,?,?,?,?,?,?,?)",
                          (f"COR-{annee_c}-{n + i:03d}", camp, ess, lieu, ligne(f.get("adresse"))[:200],
-                          lat + (i % 5) * 0.00008, lon + (i // 5) * 0.0001, f.get("annee_plantation", type=int) or annee_c))
+                          lat + (i % 5) * 0.00008, lon + (i // 5) * 0.0001, f.get("annee_plantation", type=int) or annee_c,
+                          ligne(f.get("variete"))[:60], ligne(f.get("taille"))[:40]))
         db().commit()  # tout ou rien
         flash(f"{nb} arbre(s) ajouté(s) au stock. Ajustez les coordonnées au besoin.", "ok")
         return redirect(url_for("arbres", campagne=camp))
@@ -1655,9 +1678,9 @@ def export_xlsx():
                 "LEFT JOIN essences e1 ON e1.id=p.essence1_id LEFT JOIN essences e2 ON e2.id=p.essence2_id "
                 "LEFT JOIN arbres a ON a.id=p.arbre_id ORDER BY p.id")])
     feuille(wb.create_sheet(), "Arbres",
-            ["Identifiant", "Campagne", "Essence", "Nom latin", "Lieu", "Adresse", "Latitude", "Longitude", "Année plantation",
-             "Date plantation", "Statut", "Parrainage", "Prénom de l'enfant", "Observations"],
-            [(r["code"], r["camp"], r["essence"], r["latin"], r["lieu"], r["adresse"], r["lat"], r["lon"], r["annee_plantation"],
+            ["Identifiant", "Campagne", "Essence", "Nom latin", "Variété", "Taille", "Lieu", "Adresse", "Latitude", "Longitude",
+             "Année plantation", "Date plantation", "Statut", "Parrainage", "Prénom de l'enfant", "Observations"],
+            [(r["code"], r["camp"], r["essence"], r["latin"], r["variete"], r["taille"], r["lieu"], r["adresse"], r["lat"], r["lon"], r["annee_plantation"],
               r["date_plantation"], r["statut"], r["pref"], r["enfant_prenom"], r["observations"]) for r in q(
                 "SELECT a.*, c.nom camp, e.nom essence, e.latin, p.ref pref, p.enfant_prenom FROM arbres a "
                 "JOIN campagnes c ON c.id=a.campagne_id JOIN essences e ON e.id=a.essence_id "

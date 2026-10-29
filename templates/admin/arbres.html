@@ -2,12 +2,22 @@
 {% block title %}Arbres{% endblock %}
 {% block body %}
 <h1>Arbres à planter (stock)</h1>
-<p class="chapo">Seuls les arbres <b>libres</b> de ce stock peuvent être proposés aux familles. Ajoutez ici les arbres réellement prévus à la plantation.</p>
+<p class="chapo">Seuls les arbres <b>libres</b> de ce stock peuvent être proposés aux familles. Ajoutez ici les arbres réellement prévus à la plantation. « Modifier » corrige le lieu, les coordonnées GPS, la variété et la taille d'un arbre, même parrainé (le certificat suit).</p>
 <form method="get" class="ctl"><label for="campagne" style="margin:0">Campagne</label>
  <select id="campagne" name="campagne" style="width:auto" onchange="this.form.submit()"><option value="">Toutes</option>{% for c in campagnes %}<option value="{{ c.id }}" {{ 'selected' if c.id==camp }}>{{ c.nom }}</option>{% endfor %}</select></form>
 <div class="tbl"><table>
 <tr><th>Identifiant</th><th>Essence</th><th>Lieu</th><th>GPS</th><th>Plantation</th><th>Statut</th><th>Parrainage</th><th></th></tr>
-{% for a in rows %}<tr><td>{{ a.code }}</td><td>{{ a.essence }}</td><td>{{ a.lieu }}{% if a.adresse %}<br><small>{{ a.adresse }}</small>{% endif %}</td>
+{% for a in rows %}<tr><td>{{ a.code }}</td><td>{{ a.essence }}{% if a.variete %} <small>{{ a.variete|variete }}</small>{% endif %}{% if a.taille %}<br><small>{{ a.taille }}</small>{% endif %}</td>
+<td>{{ a.lieu }}{% if a.adresse %}<br><small>{{ a.adresse }}</small>{% endif %}{% if a.observations %}<br><small><i>{{ a.observations }}</i></small>{% endif %}
+ <details class="mail"><summary><small>Modifier</small></summary>
+  <form method="post" style="min-width:260px"><input type="hidden" name="csrf" value="{{ csrf() }}"><input type="hidden" name="action" value="modifier"><input type="hidden" name="id" value="{{ a.id }}"><input type="hidden" name="campagne_id" value="{{ camp or '' }}">
+   <label for="m-lieu{{ a.id }}">Lieu</label><input type="text" id="m-lieu{{ a.id }}" name="lieu" value="{{ a.lieu }}" maxlength="120" required>
+   <label for="m-adr{{ a.id }}">Adresse</label><input type="text" id="m-adr{{ a.id }}" name="adresse" value="{{ a.adresse or '' }}" maxlength="200">
+   <div class="row"><div><label for="m-lat{{ a.id }}">Latitude</label><input type="text" id="m-lat{{ a.id }}" name="lat" value="{{ a.lat }}" required></div>
+    <div><label for="m-lon{{ a.id }}">Longitude</label><input type="text" id="m-lon{{ a.id }}" name="lon" value="{{ a.lon }}" required></div></div>
+   <div class="row"><div><label for="m-var{{ a.id }}">Variété</label><input type="text" id="m-var{{ a.id }}" name="variete" value="{{ a.variete or '' }}" maxlength="60"></div>
+    <div><label for="m-tai{{ a.id }}">Taille</label><input type="text" id="m-tai{{ a.id }}" name="taille" value="{{ a.taille or '' }}" maxlength="40"></div></div>
+   <button class="sec petit">Enregistrer</button></form></details></td>
 <td><small><a href="https://www.openstreetmap.org/?mlat={{ a.lat }}&amp;mlon={{ a.lon }}#map=18/{{ a.lat }}/{{ a.lon }}" target="_blank" rel="noopener" title="Voir sur la carte (nouvel onglet)">{{ '%.5f'|format(a.lat) }}, {{ '%.5f'|format(a.lon) }}</a></small></td>
 <td>{{ a.date_plantation|fr or ('prévue ' ~ a.annee_plantation) }}</td><td>{{ a.statut }}</td><td>{% if a.pref %}{{ a.pref }} ({{ a.enfant_prenom }}){% endif %}</td>
 <td><form method="post" class="ctl" style="flex-wrap:wrap"><input type="hidden" name="csrf" value="{{ csrf() }}"><input type="hidden" name="id" value="{{ a.id }}"><input type="hidden" name="campagne_id" value="{{ camp or '' }}">
@@ -29,6 +39,8 @@
  <div><label for="essence_id">Essence</label><select id="essence_id" name="essence_id" required>{% for e in essences %}<option value="{{ e.id }}">{{ e.nom }}</option>{% endfor %}</select></div></div>
  <div class="row"><div><label for="nombre">Nombre d'arbres</label><input type="number" id="nombre" name="nombre" min="1" max="200" value="1" required></div>
  <div><label for="annee_plantation">Année de plantation prévue</label><input type="number" id="annee_plantation" name="annee_plantation" value="{{ annee_defaut() }}"></div></div>
+ <div class="row"><div><label for="variete">Variété <span class="aide">facultatif, ex. Kanzan</span></label><input type="text" id="variete" name="variete" maxlength="60"></div>
+ <div><label for="taille">Taille à la plantation <span class="aide">facultatif, ex. Tige 16/18 ou Cépée 200/250</span></label><input type="text" id="taille" name="taille" maxlength="40"></div></div>
  <div class="row"><div><label for="lieu">Lieu (nom du site)</label><input type="text" id="lieu" name="lieu" required></div>
  <div><label for="adresse">Adresse</label><input type="text" id="adresse" name="adresse"></div></div>
  <div class="row"><div><label for="lat">Latitude <span class="aide">ex. 45.6706 ; remplie par la recherche ci-dessus</span></label><input type="text" id="lat" name="lat" required></div>
