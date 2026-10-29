@@ -39,7 +39,7 @@ location ^~ /monarbre/ {
 
 `^~` garantit que ce bloc passe avant d'éventuels blocs `location` à expression régulière du domaine (par exemple pour le cache des images). `APP_URL`, s'il est renseigné, est l'adresse du site **sans** le sous-chemin (`https://maps.utagawavtt.com`) ; si le sous-chemin y figure, il n'est pas doublé.
 
-**Serveur maps.utagawavtt.com** (derrière Cloudflare, avec le module headers-more) : le fichier prêt à inclure est [deploy/nginx/MonArbre.conf](deploy/nginx/MonArbre.conf), construit comme `ATCorbas.conf`. Il retire aussi les en-têtes CORS `*` et `X-Frame-Options` hérités du bloc `server`, et pose `noindex` pour la bêta. Installation, depuis le dossier du projet :
+**Serveur maps.utagawavtt.com** (derrière Cloudflare, avec le module headers-more) : le fichier prêt à inclure est [deploy/nginx/MonArbre.conf](deploy/nginx/MonArbre.conf), construit comme `ATCorbas.conf`. Il coupe l'héritage des `add_header` du bloc `http` (`X-Frame-Options SAMEORIGIN`, `nosniff` en double) pour laisser l'application poser ses propres en-têtes de sécurité, et pose `noindex` pour la bêta. Installation, depuis le dossier du projet :
 
 ```bash
 sudo cp deploy/nginx/MonArbre.conf /etc/nginx/snippets/MonArbre.conf
