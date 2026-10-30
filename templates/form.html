@@ -13,7 +13,7 @@
 {% else %}
   {% if errors %}<div class="banner err" role="alert" tabindex="-1" id="resume-err"><b>Votre demande n'a pas pu être envoyée.</b> Corrigez les points signalés ci-dessous.{% if errors.doublon %}<br>{{ errors.doublon }}{% endif %}</div>{% endif %}
 
-  <form method="post" action="{{ url_for('demande') }}" id="f" enctype="multipart/form-data" novalidate>
+  <form method="post" action="{{ url_for('demande') }}" id="f" novalidate>
     <ol class="progress" aria-label="Progression de la demande"><li class="on cur">Enfant</li><li>Vous</li><li>Essence</li><li>Envoi</li></ol>
     <p class="etape-titre" id="etape-titre" aria-live="polite"></p>
     <p class="mention" style="margin:4px 0 0">Les champs marqués d'un * sont obligatoires.</p>
@@ -27,7 +27,6 @@
       {% if not errors %}
       <div class="prep"><b>Avant de commencer, préparez (3 minutes) :</b>
         <ul><li>la date de naissance de votre enfant (moins de 12 mois),</li>
-            <li>une copie du livret de famille : une photo prise avec votre téléphone suffit,</li>
             <li>votre adresse e-mail.</li></ul></div>
       {% endif %}
 
@@ -108,14 +107,12 @@
     <section class="etape" data-titre="Étape 4 sur 4">
       <h2>Vérifiez et <strong>envoyez</strong></h2>
       <div class="panel recap" id="recap" aria-live="polite"></div>
-      <div class="{{ 'has-err' if errors.livret or errors.livret_a_rejoindre }}"><label for="livret">Copie du livret de famille *<span class="aide">La ou les pages qui mentionnent l'enfant. PDF, JPG ou PNG, 5 Mo maximum. Vous pouvez la photographier avec votre téléphone. Elle sert uniquement à vérifier l'éligibilité ; l'original sera demandé au retrait du certificat.</span></label>
-        <input type="file" id="livret" name="livret" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" required>{{ err('livret') }}{% if errors.livret_a_rejoindre and not errors.livret %}<span class="err-msg" role="alert">{{ errors.livret_a_rejoindre }}</span>{% endif %}</div>
       <div class="{{ 'has-err' if errors.attest }}"><label class="check"><input type="checkbox" name="attest" value="1" {{ 'checked' if v.attest }}><span>J'atteste être titulaire de l'autorité parentale sur cet enfant, qu'il est né à Corbas ou y est domicilié, qu'il est né depuis moins de 12 mois et que les informations sont exactes. *</span></label>{{ err('attest') }}</div>
       <div class="{{ 'has-err' if errors.engage }}"><label class="check"><input type="checkbox" name="engage" value="1" {{ 'checked' if v.engage }}><span>J'ai compris que l'arbre reste un bien communal : le parrainage ne donne aucun droit de propriété ni d'usage exclusif, et la commune peut intervenir sur l'arbre (taille, déplacement, abattage pour motif sanitaire ou de sécurité). *</span></label>{{ err('engage') }}</div>
       <div class="{{ 'has-err' if errors.rgpd }}"><label class="check"><input type="checkbox" name="rgpd" value="1" {{ 'checked' if v.rgpd }}><span>J'accepte que mes données soient traitées pour ce dispositif (voir mention ci-dessous). *</span></label>{{ err('rgpd') }}</div>
       <label class="check"><input type="checkbox" name="benevolat" value="1" {{ 'checked' if v.benevolat }}><span>Je souhaite être informé(e) des actions d'entretien bénévoles autour des arbres (arrosage, paillage…). <i>(Facultatif)</i></span></label>
       <div class="hp" aria-hidden="true"><label>Ne pas remplir <input type="text" name="site_web" tabindex="-1" autocomplete="off"></label></div>
-      <p class="mention">{{ MAIRIE.nom }} traite ces données pour gérer le dispositif « {{ DISPOSITIF.nom }} » (mission d'intérêt public). Elles sont conservées pendant toute la durée de vie de l'arbre parrainé et ne sont transmises à personne. Pour vous aider à saisir votre adresse, les premières lettres que vous tapez sont transmises, par notre serveur et sans aucune autre information, à la Base Adresse Nationale (service public). La copie du livret de famille n'est lue que par les agents de la mairie, pour vérifier l'éligibilité, puis elle est supprimée (elle reste récupérable 6 mois, puis elle est effacée définitivement). Vous pouvez exercer vos droits d'accès, de rectification et de suppression à l'accueil de la mairie ou à {{ MAIRIE.dpo }}.</p>
+      <p class="mention">{{ MAIRIE.nom }} traite ces données pour gérer le dispositif « {{ DISPOSITIF.nom }} » (mission d'intérêt public). Elles sont conservées pendant toute la durée de vie de l'arbre parrainé et ne sont transmises à personne. Pour vous aider à saisir votre adresse, les premières lettres que vous tapez sont transmises, par notre serveur et sans aucune autre information, à la Base Adresse Nationale (service public). La naissance de l'enfant est vérifiée par les services de l'état civil de la mairie, avec leurs propres outils : aucun document n'est à joindre. Vous pouvez exercer vos droits d'accès, de rectification et de suppression à l'accueil de la mairie ou à {{ MAIRIE.dpo }}.</p>
     </section>
 
     <div class="nav">
@@ -204,14 +201,8 @@
   }
   function efface(w){ w.querySelectorAll('.err-msg.js').forEach(function(m){m.remove();}); w.classList.remove('has-err'); w.querySelectorAll('[aria-invalid]').forEach(function(e){e.removeAttribute('aria-invalid');}); }
   f.addEventListener('submit', function(e){
-    /* Tout est contrôlé ici avant l'envoi : un refus du serveur ferait perdre le fichier choisi. */
+    /* Les trois cases obligatoires sont contrôlées ici avant l'envoi. */
     var first = null;
-    var el = f.elements.livret, w = el.closest('div'); efface(w);
-    var fi = el.files && el.files[0], msg = '';
-    if(!fi){ msg = 'Joignez une copie du livret de famille (PDF, JPG ou PNG).'; }
-    else if(!/\.(pdf|jpe?g|png)$/i.test(fi.name)){ msg = "Ce fichier n'est pas un PDF, un JPG ou un PNG."; }
-    else if(fi.size > 5*1024*1024){ msg = 'Le fichier dépasse 5 Mo. Réduisez-le ou photographiez-le à nouveau.'; }
-    if(msg){ erreur(el, msg); first = el; }
     [['attest',"Merci de confirmer que vous détenez l'autorité parentale."],
      ['engage',"Merci de confirmer que vous avez compris le statut de l'arbre."],
      ['rgpd',"Merci d'accepter le traitement de vos données pour envoyer la demande."]].forEach(function(x){
@@ -257,7 +248,7 @@
   try{
     if(location.search.indexOf('autre=1')>-1){ var sv=JSON.parse(sessionStorage.getItem('parrainage-parent')||'{}');
       CH.forEach(function(k){ if(sv[k]) f.elements[k].value=sv[k]; });
-      if(sv.naissance){ var b=document.createElement('div'); b.className='banner'; b.textContent="Nous avons repris vos coordonnées. Indiquez le prénom et le nom de l'autre enfant et joignez de nouveau la copie du livret de famille : une demande par enfant."; f.parentNode.insertBefore(b,f); } }
+      if(sv.naissance){ var b=document.createElement('div'); b.className='banner'; b.textContent="Nous avons repris vos coordonnées. Indiquez le prénom et le nom de l'autre enfant : une demande par enfant."; f.parentNode.insertBefore(b,f); } }
     f.addEventListener('submit', function(){ var o={}; CH.forEach(function(k){ o[k]=f.elements[k].value; }); sessionStorage.setItem('parrainage-parent', JSON.stringify(o)); });
   }catch(e){}
   f.addEventListener('keydown', function(e){ if(e.key==='Enter' && e.target.tagName!=='TEXTAREA' && i<steps.length-1){ e.preventDefault(); suiv.click(); } });

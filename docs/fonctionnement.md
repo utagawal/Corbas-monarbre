@@ -12,7 +12,7 @@ Ce document complète le [README](../README.md) (installation et mise en product
 | Administrateur | Arbres | Saisir le stock d'arbres **à planter** (essence, variété, taille, lieu, GPS, année). Une recherche de lieu ou d'adresse à Corbas (Photon / OpenStreetMap) remplit le lieu, l'adresse et les coordonnées GPS ; un lien permet de vérifier l'emplacement sur la carte. « Modifier » corrige le lieu, le GPS, la variété et la taille d'un arbre existant (même parrainé : le certificat suit). Seuls les arbres libres sont proposés aux familles |
 | Administrateur | Utilisateurs | Créer les comptes agents / administrateurs, réinitialiser un mot de passe |
 | Administrateur | Notifications | Choisir les adresses (une ou plusieurs) prévenues par e-mail à chaque nouvelle demande, et envoyer un message de test |
-| Agent | Demandes | Compteurs cliquables (à traiter, à imprimer, à remettre, copies de livret à supprimer), recherche (nom, e-mail, référence). Les demandes à traiter s'affichent **les plus anciennes en premier** : les arbres sont en nombre limité, on traite dans l'ordre d'arrivée |
+| Agent | Demandes | Compteurs cliquables (à traiter, à imprimer, à remettre), recherche (nom, e-mail, référence). Les demandes à traiter s'affichent **les plus anciennes en premier** : les arbres sont en nombre limité, on traite dans l'ordre d'arrivée |
 | Agent | Fiche demande | Frise d'avancement, contrôles automatiques, arbre le plus adapté pré-sélectionné (une seule action pour valider ; confirmation si un contrôle est en alerte), certificat PDF, puis « Marquer comme remis » |
 | Tous | Export Excel | Parrainages, arbres, essences, campagnes (4 feuilles) |
 | Tous | Courriers | Historique des e-mails, avec la raison d'un échec d'envoi et un bouton « Renvoyer » |
@@ -24,11 +24,19 @@ Statuts : Reçue → Validée → Certificat imprimé → Remis. Branches : Comp
 
 ## Données personnelles
 
-**Copie du livret de famille** : obligatoire dans le formulaire (PDF, JPG ou PNG, 5 Mo max, type vérifié sur le contenu du fichier). Elle est stockée hors du site web dans `/data/livrets/` sous un nom aléatoire, consultable uniquement par un agent connecté. Après contrôle, l'agent clique sur « Contrôle fait : supprimer la copie » : la copie n'est plus accessible aux agents mais **reste récupérable par un administrateur pendant 6 mois** (bouton « Restaurer »), puis elle est effacée définitivement et automatiquement (purge au démarrage, puis toutes les heures). Le tableau des demandes signale les copies encore à supprimer. Un **refus** ou une **annulation** met aussi la copie en corbeille. La demande d'anonymisation RGPD (administrateur) efface la copie **immédiatement et sans récupération**, ainsi que les courriers de la famille. Sauvegardez `/data/livrets/` avec la base : les anciennes sauvegardes contiennent les copies jusqu'à leur propre expiration, donc limitez leur durée de conservation à 6 mois.
+**Vérification de la naissance** : le formulaire ne demande aucun document. Les services de l'état civil vérifient la naissance de l'enfant et le lien avec le déclarant avec leurs propres outils, hors de l'application ; la fiche de la demande le rappelle. Au retrait du certificat, seul un justificatif de domicile est demandé (e-mails et page de confirmation). La mention RGPD du formulaire indique cette vérification. La demande d'anonymisation RGPD (administrateur) efface l'identité, les coordonnées et les courriers de la famille ; la fiche de l'arbre reste.
 
 **Téléphone mobile** : obligatoire. Mobile français (06 ou 07, avec ou sans +33) ou numéro international commençant par +. Il est enregistré sous la forme « 06 12 34 56 78 ».
 
 **Protections** : 10 demandes enregistrées par heure et par adresse IP (`RATE_LIMIT`), connexion bloquée 15 minutes après 10 mots de passe faux, mot de passe de 10 caractères minimum, sessions de 8 heures, pages du back-office jamais mises en cache, export Excel sans formules (les textes saisis par les familles ne peuvent pas devenir des formules).
+
+### Anciennes copies de livret de famille
+
+Le formulaire a d'abord demandé une copie du livret de famille. L'application ne la lit, ne la conserve et ne la supprime plus. Si des copies ont été déposées pendant les essais, elles restent dans le dossier `livrets/` du volume de données, **sans plus aucun accès depuis l'application** : effacez-les une fois pour toutes après la mise à jour (et pensez aux anciennes sauvegardes, qui peuvent en contenir).
+
+```bash
+docker compose exec app rm -rf /data/livrets
+```
 
 ## Saisie assistée des adresses
 

@@ -3,7 +3,7 @@
 # Réglage propre au serveur (port publié en local derrière nginx) : voir le README
 docker-compose.override.yml
 
-# Données d'exécution (base SQLite, copies de livrets de famille, clé secrète, tuiles, photos envoyées) et jeu de démonstration
+# Données d'exécution (base SQLite, clé secrète, tuiles, photos envoyées) et jeu de démonstration
 data/
 demo_data/
 

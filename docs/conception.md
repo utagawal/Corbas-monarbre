@@ -9,6 +9,7 @@ Version 1 – cadrage validé le 28/10/2026 (à confirmer en conseil municipal).
 |---|---|
 | Choix de l'arbre | La famille choisit **l'essence** (1er choix + 2e choix facultatif). **La ville attribue l'arbre précis** et son emplacement. |
 | Validation | Chaque demande est contrôlée par un agent avant toute remise. |
+| Pièces justificatives | **Aucun document n'est déposé dans le formulaire** (décision du 30/10/2026) : les services de l'état civil vérifient la naissance de l'enfant et le lien avec le déclarant avec leurs propres outils. Le formulaire est plus court et la mairie ne conserve plus de copie de livret de famille. |
 | Remise du certificat | **Papier, uniquement en mairie.** Le PDF est généré pour impression par l'agent, pas envoyé par mail. |
 | Technique | Application indépendante, intégrée dans WordPress par **iframe** (ou lien de redirection). Le site WordPress n'est pas modifié. |
 | Paramétrage | Un administrateur gère campagnes, essences et arbres/emplacements, sans développeur. |
@@ -31,7 +32,7 @@ Version 1 – cadrage validé le 28/10/2026 (à confirmer en conseil municipal).
 
 ### Parcours agent (back-office, 2 clics par demande)
 1. Notification « nouvelle demande » (mail quotidien groupé ou immédiat, au choix).
-2. Ouvre la fiche. L'outil affiche les contrôles automatiques (délai de 12 mois, doublon, commune, stock).
+2. Ouvre la fiche. L'outil affiche les contrôles automatiques (délai de 12 mois, doublon, commune, stock). La naissance et le lien avec le déclarant sont vérifiés par l'état civil, hors de l'application.
 3. Choisit l'action : **Valider et affecter un arbre** (l'outil propose les arbres libres de l'essence choisie, avec carte), **Mettre en liste d'attente**, **Refuser** (motif obligatoire) ou **Demander un complément**.
 4. Après affectation, le certificat PDF est généré. L'agent l'imprime et l'e-mail « prêt » part.
 5. Au retrait, l'agent coche **Remis le jj/mm/aaaa**.
@@ -90,14 +91,14 @@ Récapitulatif modifiable (lien « Modifier » par bloc), puis :
 
 Bouton : **Envoyer ma demande**
 
-**Mention RGPD (sous le bouton) :** « La mairie de Corbas traite ces données pour gérer le dispositif “Mon arbre à Corbas” (mission d'intérêt public). Elles sont conservées pendant toute la durée de vie de l'arbre parrainé et ne sont transmises à personne. Vous pouvez exercer vos droits d'accès, de rectification et de suppression à l'accueil de la mairie ou à {adresse DPO/mail}. »
+**Mention RGPD (sous le bouton) :** « La mairie de Corbas traite ces données pour gérer le dispositif “Mon arbre à Corbas” (mission d'intérêt public). Elles sont conservées pendant toute la durée de vie de l'arbre parrainé et ne sont transmises à personne. La naissance de l'enfant est vérifiée par les services de l'état civil de la mairie, avec leurs propres outils : aucun document n'est à joindre. Vous pouvez exercer vos droits d'accès, de rectification et de suppression à l'accueil de la mairie ou à {adresse DPO/mail}. »
 
 ### Principes d'interaction retenus
 
-*Revue UX/UI (octobre 2026) :* encadré « Avant de commencer » (date de naissance, copie du livret, e-mail) affiché à la première étape seulement ; barre de progression étiquetée (Enfant, Vous, Essence, Envoi) ; contrôle des e-mails et du code postal dès la sortie du champ ; sélecteur de date qui grise les dates de plus de 12 mois ; pastille de sélection visible sur les cartes d'essence (pas seulement la couleur) ; page de confirmation en quatre étapes (« Et maintenant ? ») avec adresse et horaires de la mairie ; fond transparent dans l'iframe ; focus clavier bleu contrasté (6,4:1), textes secondaires à plus de 4,5:1 ; côté agents, compteurs cliquables, file d'attente triée du plus ancien au plus récent, arbre du premier choix pré-sélectionné, lien « Aller au contenu », courriers repliables.
+*Revue UX/UI (octobre 2026) :* encadré « Avant de commencer » (date de naissance, e-mail) affiché à la première étape seulement ; barre de progression étiquetée (Enfant, Vous, Essence, Envoi) ; contrôle des e-mails et du code postal dès la sortie du champ ; sélecteur de date qui grise les dates de plus de 12 mois ; pastille de sélection visible sur les cartes d'essence (pas seulement la couleur) ; page de confirmation en quatre étapes (« Et maintenant ? ») avec adresse et horaires de la mairie ; fond transparent dans l'iframe ; focus clavier bleu contrasté (6,4:1), textes secondaires à plus de 4,5:1 ; côté agents, compteurs cliquables, file d'attente triée du plus ancien au plus récent, arbre du premier choix pré-sélectionné, lien « Aller au contenu », courriers repliables.
 - Un seul sujet par écran, barre de progression « Étape 2 sur 4 », bouton Retour qui conserve la saisie.
 - Validation au fil de l'eau, messages en clair qui disent quoi faire, jamais « champ invalide ».
-- **Copie du livret de famille obligatoire** (PDF/JPG/PNG, 5 Mo). Lue par les agents seulement. L'agent la supprime après contrôle ; elle reste récupérable par un administrateur 6 mois, puis elle est effacée automatiquement (effacement immédiat en cas de demande RGPD). L'original du livret et un justificatif de domicile sont présentés au retrait.
+- **Aucune pièce à joindre** : le formulaire ne reçoit aucun fichier (la copie du livret de famille, prévue au départ, a été supprimée : l'état civil vérifie la naissance avec ses outils). Un justificatif de domicile est présenté au retrait du certificat.
 - Pas de nom de famille sur le certificat, pas de photo de l'enfant.
 - Anti-spam sans captcha pénible : champ piège invisible + limitation du nombre d'envois par adresse IP.
 - Accessibilité (RGAA) : libellés explicites, contrastes, navigation clavier, alternatives textuelles des photos d'arbres, taille de police ≥ 16 px.
@@ -123,7 +124,7 @@ Bouton : **Envoyer ma demande**
 > **Et maintenant ?**
 > 1. Nos services vérifient votre demande et choisissent l'arbre qui accompagnera {prénom}.
 > 2. Vous recevrez un nouvel e-mail dès que le certificat de parrainage sera prêt.
-> 3. Vous viendrez le retirer à l'accueil de la mairie. Pensez à apporter le livret de famille et un justificatif de domicile.
+> 3. Vous viendrez le retirer à l'accueil de la mairie. Pensez à apporter un justificatif de domicile.
 >
 > Une question ? {mail/téléphone du service} – {horaires d'accueil}.
 > Au plaisir de voir grandir {prénom} et son arbre,
@@ -132,7 +133,7 @@ Bouton : **Envoyer ma demande**
 ### E-mail 2 – Certificat prêt (envoyé quand l'agent valide)
 **Objet :** Le certificat de parrainage de {prénom} est prêt
 
-> L'arbre de {prénom} a été choisi : c'est un {essence} ! Son certificat vous attend à l'accueil de la mairie de Corbas, {adresse}, aux horaires suivants : {horaires}. Il est tenu à votre disposition pendant {x} mois. Apportez le livret de famille et un justificatif de domicile.
+> L'arbre de {prénom} a été choisi : c'est un {essence} ! Son certificat vous attend à l'accueil de la mairie de Corbas, {adresse}, aux horaires suivants : {horaires}. Il est tenu à votre disposition pendant {x} mois. Apportez un justificatif de domicile.
 
 ### E-mail 3 – Liste d'attente
 > Toutes les places de la campagne {nom} sont attribuées. Votre demande est placée en liste d'attente (rang {n}). Vous serez prévenu(e) dès que de nouveaux arbres seront plantés.
@@ -186,8 +187,8 @@ Charte : couleurs de la ville, une teinte d'accent par essence, polices lisibles
 | Liste d'attente servie plus tard | L'agent peut affecter n'importe quel arbre libre, y compris celui d'une campagne ultérieure. |
 | Arbre mort ou abattu | Fiche arbre passée à « Remplacé » ; l'agent affecte un nouvel arbre ; un nouveau certificat est imprimé avec la mention « remplace le n° ». |
 | Certificat non retiré | Rappel automatique à 30 jours, puis archivage à {x} mois. *(Non réalisé dans le prototype.)* |
-| Demande de suppression RGPD | Fonction d'anonymisation réservée à l'administrateur : identité, copie du livret (effacement immédiat) et courriers de la famille sont effacés ; la fiche arbre reste. |
-| Refus ou annulation d'une demande | L'arbre est libéré et la copie du livret passe en corbeille (récupérable 6 mois par un administrateur). La famille peut redéposer une demande. |
+| Demande de suppression RGPD | Fonction d'anonymisation réservée à l'administrateur : identité et courriers de la famille sont effacés ; la fiche arbre reste. |
+| Refus ou annulation d'une demande | L'arbre est libéré. La famille peut redéposer une demande. |
 | Courrier qui ne part pas (SMTP en panne) | L'envoi se fait en arrière-plan : la famille n'attend pas. Le courrier reste dans le back-office avec la raison de l'échec et un bouton « Renvoyer ». |
 | Envois en rafale depuis une même adresse IP | 10 demandes enregistrées par heure au maximum (réglable). Les saisies refusées par le formulaire ne comptent pas. 10 mots de passe faux : connexion bloquée 15 minutes. |
 | Heure du serveur | Toutes les dates sont calculées à l'heure de Paris (un serveur Docker est à l'heure UTC : une naissance du jour aurait été refusée entre minuit et 2 h). |
@@ -246,7 +247,7 @@ Stockage principal en base (SQLite ou MySQL), avec **export Excel (.xlsx) en un 
 - **Stock :** l'application n'offre des parrainages que dans la limite des **arbres à planter** déclarés par l'administrateur pour la campagne. Le formulaire ne propose jamais plus d'arbres que le stock restant (arbres libres moins demandes en cours), et seules les essences ayant encore une place sont sélectionnables.
 - **Sites de plantation :** les cinq sites proposés par le responsable des espaces verts sont une étude, pas un engagement. Ils ne figurent dans l'application que comme données d'exemple. Seul le stock saisi par l'administrateur fait foi. Le plan de plantation de l'automne 2026 transmis ensuite par le service des espaces verts (24 essences, 9 sites, 41 arbres, avec variété et taille) se charge avec `plantation.py` (`python plantation.py --help`).
 - Le site WordPress contient une page avec `<iframe src="https://parrainage.corbas.fr/formulaire">` (ou un bouton de redirection).
-- Back-office protégé par authentification (agents) avec deux rôles : **agent** (traite les demandes, imprime les certificats, consulte les courriers, exporte) et **administrateur** (en plus : campagnes, essences, arbres, comptes utilisateurs, restauration des copies de livret, anonymisation). Les comptes se créent dans l'application (menu Utilisateurs) ; chacun change son mot de passe (10 caractères minimum). Sessions limitées à 8 heures.
+- Back-office protégé par authentification (agents) avec deux rôles : **agent** (traite les demandes, imprime les certificats, consulte les courriers, exporte) et **administrateur** (en plus : campagnes, essences, arbres, comptes utilisateurs, anonymisation). Les comptes se créent dans l'application (menu Utilisateurs) ; chacun change son mot de passe (10 caractères minimum). Sessions limitées à 8 heures.
 - Envoi des mails via le SMTP de la ville (SPF/DKIM configurés pour éviter les spams).
 - Génération PDF côté serveur, carte statique avec fond OpenStreetMap (mention « © les contributeurs d'OpenStreetMap »).
 - HTTPS, sauvegarde quotidienne. L'agent qui a validé une demande est enregistré sur la fiche (pas de journal détaillé de toutes les actions dans le prototype).
@@ -263,7 +264,8 @@ Stockage principal en base (SQLite ou MySQL), avec **export Excel (.xlsx) en un 
 4. ~~Hébergement~~ : tranché (Docker sur votre serveur). Reste à fixer le nom de domaine et la personne qui assure la maintenance.
 5. **Liste des essences** et **sites de plantation** de la campagne 2026 (une vingtaine d'arbres), avec les photos et textes de présentation.
 6. **Charte graphique** : l'interface reprend celle de corbas.fr (police Roboto, bleu #005b94, titres légers avec un mot en gras, boutons en pilule). Le Maire est Benoit Eraclas (signature du certificat). Le logo de la ville (PNG à fond transparent, 170 × 47 px, fourni par la mairie) est livré avec l'application (`assets/logo-ville.png`) : il figure sur le certificat, la page de connexion et le formulaire hors iframe. Une version plus grande (au moins 600 px de large, ou vectorielle) donnerait une impression plus nette : il suffit de la déposer sous le nom `logo.png` dans le volume de données, sans redémarrage.
-7. **Corrections de la délibération** : « d'ores et déjà à disposition » (et non « d'ores et déjà »), et une virgule finale à remplacer par un point après « concernés ».
+7. **Retrait du certificat** : l'original du livret de famille n'est plus demandé (l'état civil vérifie la naissance) ; seul le justificatif de domicile figure dans les e-mails et la page de confirmation. À confirmer avec l'accueil. La mention RGPD du formulaire, qui indique la vérification par l'état civil, est à faire valider par le DPO.
+8. **Corrections de la délibération** : « d'ores et déjà à disposition » (et non « d'ores et déjà »), et une virgule finale à remplacer par un point après « concernés ».
 
 ---
 

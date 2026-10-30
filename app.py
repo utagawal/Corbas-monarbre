@@ -84,9 +84,7 @@ class Prefixe:
 URL_PREFIX = normaliser_prefixe(os.environ.get("URL_PREFIX"))
 if URL_PREFIX:
     app.wsgi_app = Prefixe(app.wsgi_app, URL_PREFIX)
-LIVRETS = os.path.join(DATA, "livrets")
-os.makedirs(LIVRETS, exist_ok=True)
-TAILLE_MAX = 5 * 1024 * 1024
+TAILLE_MAX = 5 * 1024 * 1024  # photos envoyées depuis l'administration ; le formulaire public ne reçoit aucun fichier
 app.config.update(MAX_CONTENT_LENGTH=TAILLE_MAX + 512 * 1024, PERMANENT_SESSION_LIFETIME=timedelta(hours=8))
 app.config.update(SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE="Lax",
                   SESSION_COOKIE_SECURE=os.environ.get("HTTPS", "0") == "1",
@@ -131,8 +129,7 @@ AUTORISE = {
     "complement": ("Reçue", "Complément demandé", "Liste d'attente"),
     "remis": ("Certificat imprimé",),
     "annuler": ACTIFS,
-    "notes": tuple(STATUTS), "supprimer_livret": tuple(STATUTS), "restaurer_livret": tuple(STATUTS),
-    "anonymiser": tuple(STATUTS),
+    "notes": tuple(STATUTS), "anonymiser": tuple(STATUTS),
 }
 STATUTS_ARBRE = ("libre", "parraine", "remplace")
 
@@ -148,7 +145,7 @@ CREATE TABLE IF NOT EXISTS parrainages(id INTEGER PRIMARY KEY, ref TEXT UNIQUE, 
   statut TEXT, enfant_prenom TEXT, enfant_nom TEXT, naissance TEXT, lien TEXT, parent_qualite TEXT, parent_nom TEXT,
   email TEXT, tel TEXT, adresse TEXT, cp TEXT, ville TEXT, essence1_id INTEGER, essence2_id INTEGER, benevolat INTEGER,
   hors_delai INTEGER DEFAULT 0, arbre_id INTEGER, agent TEXT, valide_at TEXT, imprime_at TEXT, remis_at TEXT,
-  motif TEXT, notes TEXT, anonymise INTEGER DEFAULT 0, livret TEXT, livret_supprime_at TEXT);
+  motif TEXT, notes TEXT, anonymise INTEGER DEFAULT 0);
 CREATE TABLE IF NOT EXISTS mails(id INTEGER PRIMARY KEY, created_at TEXT, destinataire TEXT, sujet TEXT, corps TEXT, envoye INTEGER, erreur TEXT);
 CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY, email TEXT UNIQUE, hash TEXT, role TEXT);
 CREATE TABLE IF NOT EXISTS parametres(cle TEXT PRIMARY KEY, valeur TEXT);
@@ -157,7 +154,7 @@ CREATE INDEX IF NOT EXISTS idx_parr_arbre ON parrainages(arbre_id);
 CREATE INDEX IF NOT EXISTS idx_arbres_camp ON arbres(campagne_id, statut);
 """
 # colonnes ajoutées après la première version : migration des bases existantes
-MIGRATIONS = (("parrainages", "livret"), ("parrainages", "livret_supprime_at"), ("mails", "erreur"), ("arbres", "variete"), ("arbres", "taille"))
+MIGRATIONS = (("mails", "erreur"), ("arbres", "variete"), ("arbres", "taille"))
 
 
 # ---------------------------------------------------------------- temps (heure de Paris, pas celle du serveur)
@@ -577,7 +574,7 @@ def mail_accuse(p, e1, e2, attente=False):
               f"(référence {p['ref']}).\n\n"
               f"Votre choix : {pre}\n\nEt maintenant ?\n{etape}\n"
               f"Le certificat sera à retirer à l'accueil de la mairie ({MAIRIE['adresse']}). Pensez à apporter "
-              f"l'original du livret de famille et un justificatif de domicile.\n\nUne question ? {MAIRIE['contact']}"
+              f"un justificatif de domicile.\n\nUne question ? {MAIRIE['contact']}"
               f"\n\nAu plaisir de voir grandir {p['enfant_prenom']} et son arbre," + SIGN)
 
 
@@ -786,17 +783,6 @@ def formulaire():
     return render_template("form.html", v={}, errors={}, **contexte_formulaire())
 
 
-def type_de_fichier(fichier):
-    """Extension déduite du contenu réel du fichier (et non de son nom), ou None."""
-    tete = fichier.stream.read(8)
-    fichier.stream.seek(0, 2)
-    taille = fichier.stream.tell()
-    fichier.stream.seek(0)
-    ext = (".pdf" if tete.startswith(b"%PDF") else ".jpg" if tete[:3] == bytes([0xFF, 0xD8, 0xFF])
-           else ".png" if tete[:4] == bytes([0x89, 0x50, 0x4E, 0x47]) else None)
-    return ext, taille
-
-
 def doublon_existant(prenom, nom, naissance):
     """Même enfant déjà demandé (accents, majuscules et tirets ignorés), hors demandes refusées ou annulées."""
     for r in q("SELECT enfant_prenom, enfant_nom FROM parrainages WHERE naissance=? AND anonymise=0 "
@@ -806,8 +792,8 @@ def doublon_existant(prenom, nom, naissance):
     return False
 
 
-def controler_demande(f, fichier, ctx):
-    """Contrôle côté serveur (le JavaScript du formulaire n'est qu'une aide) : retourne (valeurs, erreurs, extension)."""
+def controler_demande(f, ctx):
+    """Contrôle côté serveur (le JavaScript du formulaire n'est qu'une aide) : retourne (valeurs, erreurs)."""
     v = {k: ligne(f.get(k)) for k in (
         "enfant_prenom", "enfant_nom", "naissance", "lien", "parent_qualite", "parent_nom", "email", "email2",
         "tel", "adresse", "cp", "ville", "essence1", "essence2")}
@@ -863,34 +849,23 @@ def controler_demande(f, fichier, ctx):
                    ("rgpd", "Merci d'accepter le traitement de vos données pour envoyer la demande.")):
         if not v[k]:
             err[k] = msg
-    ext = None
-    if not fichier or not fichier.filename:
-        err["livret"] = "Joignez une copie du livret de famille (PDF, JPG ou PNG)."
-    else:
-        ext, taille = type_de_fichier(fichier)
-        if not ext:
-            err["livret"] = "Ce fichier n'est pas reconnu. Joignez un PDF, une photo JPG ou une image PNG."
-        elif taille == 0 or taille > TAILLE_MAX:
-            err["livret"] = "Le fichier est vide ou dépasse 5 Mo. Réduisez-le ou photographiez-le à nouveau."
-    if err.get("livret") is None and err:
-        err["livret_a_rejoindre"] = "Par sécurité, joignez de nouveau la copie du livret de famille."
     if not err and doublon_existant(v["enfant_prenom"], v["enfant_nom"], v["naissance"]):
         err["doublon"] = (f"Une demande existe déjà pour {v['enfant_prenom']} né(e) le {fr(v['naissance'])}. "
                           f"Si vous souhaitez la modifier, contactez l'accueil : {MAIRIE['contact']}.")
-    return v, err, ext
+    return v, err
 
 
-def inserer_parrainage(v, ctx, statut, nom_fichier):
+def inserer_parrainage(v, ctx, statut):
     """Insère la demande ; en cas de collision de référence (deux envois simultanés), recommence avec la suivante."""
     for _ in range(6):
         ref = ref_suivante()
         try:
             ex("INSERT INTO parrainages(ref,created_at,campagne_id,statut,enfant_prenom,enfant_nom,naissance,lien,parent_qualite,"
-               "parent_nom,email,tel,adresse,cp,ville,essence1_id,essence2_id,benevolat,livret) "
-               "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+               "parent_nom,email,tel,adresse,cp,ville,essence1_id,essence2_id,benevolat) "
+               "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                ref, now(), ctx["camp"]["id"], statut, v["enfant_prenom"], v["enfant_nom"], v["naissance"], v["lien"],
                v["parent_qualite"], v["parent_nom"], v["email"], v["tel"], v["adresse"], v["cp"], v["ville"],
-               int(v["essence1"]), int(v["essence2"]) if v["essence2"] else None, 1 if v["benevolat"] else 0, nom_fichier)
+               int(v["essence1"]), int(v["essence2"]) if v["essence2"] else None, 1 if v["benevolat"] else 0)
             return ref
         except sqlite3.IntegrityError:
             db().rollback()
@@ -911,19 +886,12 @@ def demande():
     ip = request.remote_addr or "?"
     if limite_atteinte(("demande", ip), LIMITE_ENVOIS, 3600) or limite_atteinte(("erreurs", ip), 60, 3600):
         abort(429)
-    v, err, ext = controler_demande(f, request.files.get("livret"), ctx)
+    v, err = controler_demande(f, ctx)
     if err:
         noter(("erreurs", ip))
         return render_template("form.html", v=v, errors=err, **ctx), 400
     statut = "Liste d'attente" if ctx["attente"] else "Reçue"
-    nom_fichier = f"{secrets.token_hex(16)}{ext}"
-    request.files["livret"].save(os.path.join(LIVRETS, nom_fichier))
-    request.files["livret"].close()
-    try:
-        ref = inserer_parrainage(v, ctx, statut, nom_fichier)
-    except Exception:
-        retirer_fichier(nom_fichier)  # pas de copie de livret orpheline si l'enregistrement échoue
-        raise
+    ref = inserer_parrainage(v, ctx, statut)
     noter(("demande", ip))
     p = q1("SELECT * FROM parrainages WHERE ref=?", ref)
     e1 = q1("SELECT * FROM essences WHERE id=?", p["essence1_id"])
@@ -937,6 +905,7 @@ MESSAGES = {
     400: ("Demande non valide", "Votre session a peut-être expiré. Rechargez la page puis recommencez."),
     403: ("Accès refusé", "Cette page est réservée aux administrateurs."),
     404: ("Page introuvable", "Cette page n'existe pas ou le lien a expiré."),
+    413: ("Fichier trop volumineux", "Le fichier dépasse 5 Mo. Réduisez-le puis recommencez."),
     429: ("Trop de demandes", "Un trop grand nombre de demandes ont été envoyées depuis votre connexion. Réessayez dans une heure "
                               "ou contactez l'accueil de la mairie."),
     500: ("Une erreur est survenue", "Le problème a été enregistré. Réessayez dans quelques instants."),
@@ -951,12 +920,6 @@ def page_erreur(e):
 
 for _code in MESSAGES:
     app.register_error_handler(_code, page_erreur)
-
-
-@app.errorhandler(413)
-def trop_gros(_):
-    return render_template("form.html", v={}, errors={"livret": "Le fichier dépasse 5 Mo. Réduisez-le ou photographiez-le à nouveau."},
-                           **contexte_formulaire()), 413
 
 
 @app.get("/merci/<token>")
@@ -1145,7 +1108,6 @@ def tableau():
     camp = request.args.get("campagne", type=int)
     statut = request.args.get("statut", "")
     recherche = norm(request.args.get("q", ""))
-    livret_a_supprimer = request.args.get("livret") == "1"
     sql, a = "SELECT p.*, e.nom essence FROM parrainages p LEFT JOIN essences e ON e.id=p.essence1_id WHERE 1=1", []
     if camp:
         sql += " AND campagne_id=?"; a.append(camp)
@@ -1153,8 +1115,6 @@ def tableau():
         sql += " AND statut IN ('Reçue','Complément demandé')"
     elif statut:
         sql += " AND statut=?"; a.append(statut)
-    if livret_a_supprimer:  # contrôle fait, copie du livret encore présente
-        sql += " AND livret IS NOT NULL AND livret_supprime_at IS NULL AND statut IN ('Validée','Certificat imprimé','Remis')"
     # file d'attente : les arbres sont en nombre limité, on traite dans l'ordre d'arrivée (les plus anciennes en premier)
     file_attente = statut in ("a_traiter", "Reçue", "Complément demandé", "Liste d'attente")
     rows = q(sql + (" ORDER BY p.id ASC" if file_attente else " ORDER BY p.id DESC"), *a)
@@ -1164,10 +1124,8 @@ def tableau():
     stats = {r["statut"]: r["n"] for r in q("SELECT statut, COUNT(*) n FROM parrainages GROUP BY statut")}
     stock = q("SELECT e.nom, COUNT(a.id) n FROM essences e LEFT JOIN arbres a ON a.essence_id=e.id AND a.statut='libre' "
               "AND a.campagne_id IN (SELECT id FROM campagnes WHERE ouverte=1) WHERE e.actif=1 GROUP BY e.id ORDER BY e.nom")
-    livrets = q1("SELECT COUNT(*) n FROM parrainages WHERE livret IS NOT NULL AND livret_supprime_at IS NULL "
-                 "AND statut IN ('Validée','Certificat imprimé','Remis')")["n"]
     return render_template("admin/tableau.html", rows=rows, stats=stats, stock=stock, statut=statut, camp=camp,
-                           recherche=request.args.get("q", ""), livrets=livrets, livret_filtre=livret_a_supprimer, file_attente=file_attente,
+                           recherche=request.args.get("q", ""), file_attente=file_attente,
                            libres=sum(s["n"] for s in stock), en_cours=sum(stats.get(s, 0) for s in EN_COURS),
                            campagnes=q("SELECT * FROM campagnes ORDER BY id DESC"))
 
@@ -1199,84 +1157,13 @@ def fiche(pid):
     except (TypeError, ValueError):
         delai_ok = True
     actions = {a for a, statuts in AUTORISE.items() if p["statut"] in statuts} if not p["anonymise"] else set()
-    return render_template("admin/fiche.html", p=p, echeance=echeance(p), e1=e1, e2=e2, dispo=dispo, arbre=arbre,
+    return render_template("admin/fiche.html", p=p, e1=e1, e2=e2, dispo=dispo, arbre=arbre,
                            doublons=doublons, stock1=stock1, delai_ok=delai_ok, actions=actions)
 
 
 def liberer(p):
     if p["arbre_id"]:
         db().execute("UPDATE arbres SET statut='libre' WHERE id=? AND statut='parraine'", (p["arbre_id"],))
-
-
-CONSERVATION_JOURS = 183  # ~6 mois : durée pendant laquelle une copie « supprimée » reste récupérable
-
-
-def retirer_fichier(nom):
-    """Efface le fichier ; retourne False s'il n'a pas pu l'être (verrouillé, droits) pour réessayer plus tard."""
-    try:
-        os.remove(os.path.join(LIVRETS, os.path.basename(nom)))
-    except FileNotFoundError:
-        pass
-    except OSError as e:
-        print("Suppression impossible :", e, file=sys.stderr, flush=True)
-        return False
-    return True
-
-
-def supprimer_livret(p, definitif=False):
-    """Suppression par l'agent : la copie passe en corbeille (récupérable 6 mois). definitif=True : effacement immédiat."""
-    if not p["livret"]:
-        return
-    if definitif and retirer_fichier(p["livret"]):
-        db().execute("UPDATE parrainages SET livret=NULL, livret_supprime_at=COALESCE(livret_supprime_at, ?) WHERE id=?", (now(), p["id"]))
-    elif definitif:
-        raise RuntimeError("La copie du livret n'a pas pu être effacée")
-    elif not p["livret_supprime_at"]:
-        db().execute("UPDATE parrainages SET livret_supprime_at=? WHERE id=?", (now(), p["id"]))
-    db().commit()
-
-
-def echeance(p):
-    if not p["livret_supprime_at"]:
-        return None
-    return (datetime.strptime(p["livret_supprime_at"], "%Y-%m-%d %H:%M:%S") + timedelta(days=CONSERVATION_JOURS)).strftime("%Y-%m-%d")
-
-
-def purger_livrets():
-    """Efface définitivement les copies supprimées depuis plus de 6 mois."""
-    limite = (maintenant() - timedelta(days=CONSERVATION_JOURS)).strftime("%Y-%m-%d %H:%M:%S")
-    for r in q("SELECT id, livret FROM parrainages WHERE livret IS NOT NULL AND livret_supprime_at IS NOT NULL AND livret_supprime_at<?", limite):
-        if retirer_fichier(r["livret"]):  # sinon on garde la référence et on réessaie à la prochaine purge
-            db().execute("UPDATE parrainages SET livret=NULL WHERE id=?", (r["id"],))
-    db().commit()
-
-
-_derniere_purge = [0.0]
-
-
-@app.before_request
-def purge_periodique():
-    if request.path.startswith("/admin") and time.time() - _derniere_purge[0] > 3600:
-        _derniere_purge[0] = time.time()
-        purger_livrets()
-
-
-@app.get("/admin/demande/<int:pid>/livret")
-@login_required()
-def livret(pid):
-    p = detail(pid)
-    if not p["livret"]:
-        abort(404)
-    if p["livret_supprime_at"] and session.get("role") != "admin":
-        abort(403)
-    chemin = os.path.join(LIVRETS, os.path.basename(p["livret"]))
-    if not os.path.exists(chemin):
-        abort(404)
-    with open(chemin, "rb") as fh:  # lecture complète (5 Mo max) : pas de descripteur laissé ouvert
-        resp = Response(fh.read(), mimetype=mimetypes.guess_type(chemin)[0] or "application/octet-stream")
-    resp.headers["Content-Disposition"] = f"inline; filename=livret-{p['ref']}{os.path.splitext(chemin)[1]}"
-    resp.headers["Cache-Control"] = "no-store"
-    return resp
 
 
 def valider_demande(p, agent):
@@ -1309,18 +1196,17 @@ def valider_demande(p, agent):
     send_mail(p["email"], f"Le certificat de parrainage de {p['enfant_prenom']} est prêt",
               f"Bonjour {p['parent_nom']},\n\nL'arbre de {p['enfant_prenom']} a été choisi : c'est un {ess} !\n"
               f"Son certificat vous attend à l'accueil de la mairie de Corbas, {MAIRIE['adresse']} "
-              f"({MAIRIE['horaires']}). Apportez l'original du livret de famille et un justificatif de domicile.{quand}"
+              f"({MAIRIE['horaires']}). Apportez un justificatif de domicile.{quand}"
               f"\n\nRéférence : {p['ref']}" + SIGN)
     flash("Demande validée, arbre affecté, e-mail envoyé à la famille.", "ok")
 
 
 def clore_demande(p, statut, motif=None, agent=None):
-    """Refus ou annulation : l'arbre est libéré et la copie du livret passe en corbeille (plus aucun contrôle à faire)."""
+    """Refus ou annulation : l'arbre est libéré."""
     liberer(p)
     db().execute("UPDATE parrainages SET statut=?, arbre_id=NULL, motif=COALESCE(?, motif), agent=COALESCE(?, agent) WHERE id=?",
                  (statut, motif, agent, p["id"]))
     db().commit()
-    supprimer_livret(p)
 
 
 @app.post("/admin/demande/<int:pid>/action")
@@ -1351,7 +1237,7 @@ def action(pid):
         send_mail(p["email"], f"Votre demande de parrainage ({p['ref']})",
                   f"Bonjour {p['parent_nom']},\n\nNous ne pouvons pas donner suite à votre demande pour la raison suivante : "
                   f"{motif}\n\nPour toute question : {MAIRIE['contact']}" + SIGN)
-        flash("Demande refusée, e-mail envoyé. La copie du livret a été supprimée (récupérable 6 mois).", "ok")
+        flash("Demande refusée, e-mail envoyé.", "ok")
     elif a == "complement":
         msg = request.form.get("motif", "").strip()
         if not msg:
@@ -1369,28 +1255,15 @@ def action(pid):
         flash("Certificat marqué comme remis.", "ok")
     elif a == "annuler":
         clore_demande(p, "Annulée")
-        flash("Demande annulée, l'arbre est de nouveau disponible. La copie du livret a été supprimée (récupérable 6 mois).", "ok")
+        flash("Demande annulée, l'arbre est de nouveau disponible.", "ok")
     elif a == "notes":
         db().execute("UPDATE parrainages SET notes=? WHERE id=?", (request.form.get("notes", "")[:4000], pid))
         db().commit()
         flash("Notes enregistrées.", "ok")
-    elif a == "supprimer_livret":
-        supprimer_livret(p)
-        flash("Copie du livret supprimée. Elle reste récupérable par un administrateur pendant 6 mois, puis sera effacée.", "ok")
-    elif a == "restaurer_livret":
-        if session.get("role") != "admin":
-            abort(403)
-        if p["livret"] and p["livret_supprime_at"]:
-            db().execute("UPDATE parrainages SET livret_supprime_at=NULL WHERE id=?", (pid,))
-            db().commit()
-            flash("Copie du livret restaurée.", "ok")
-        else:
-            flash("Il n'y a plus de copie à restaurer (délai de 6 mois dépassé).", "err")
     elif a == "anonymiser":
         if session.get("role") != "admin":
             abort(403)
         ref, adresse_mail = p["ref"], p["email"] or ""
-        supprimer_livret(p, definitif=True)
         db().execute("UPDATE parrainages SET enfant_nom='', parent_nom='(anonymisé)', email='', tel='', adresse='', cp='', "
                      "ville='', notes='', motif=NULL, anonymise=1 WHERE id=?", (pid,))
         # les courriers conservés dans le back-office contiennent les mêmes données : ils sont effacés aussi
@@ -1400,7 +1273,7 @@ def action(pid):
         db().execute("UPDATE mails SET sujet='(anonymisé) ' || ?, corps='(effacé : demande RGPD)' WHERE sujet LIKE ? OR corps LIKE ?",
                      (ref, f"%{ref}%", f"%{ref}%"))
         db().commit()
-        flash("Données personnelles effacées (fiche, copie du livret et courriers). La fiche de l'arbre est conservée.", "ok")
+        flash("Données personnelles effacées (fiche et courriers). La fiche de l'arbre est conservée.", "ok")
     return redirect(url_for("fiche", pid=pid))
 
 
@@ -1634,16 +1507,6 @@ def renvoyer_mail(mid):
     return redirect(url_for("mails"))
 
 
-def livret_export(r):
-    if r["livret"] and not r["livret_supprime_at"]:
-        return "Reçue, à contrôler"
-    if r["livret"]:
-        return f"Supprimée le {fr(r['livret_supprime_at'])}, récupérable jusqu'au {fr(echeance(r))}"
-    if r["livret_supprime_at"]:
-        return f"Supprimée le {fr(r['livret_supprime_at'])}, effacée définitivement"
-    return ""
-
-
 @app.get("/admin/export.xlsx")
 @login_required()
 def export_xlsx():
@@ -1668,10 +1531,10 @@ def export_xlsx():
 
     feuille(wb.active, "Parrainages",
             ["Référence", "Date de la demande", "Campagne", "Statut", "Prénom enfant", "Nom enfant", "Naissance", "Lien avec Corbas",
-             "Copie du livret", "Parent", "Qualité", "E-mail", "Téléphone", "Adresse", "CP", "Ville", "Essence 1", "Essence 2",
+             "Parent", "Qualité", "E-mail", "Téléphone", "Adresse", "CP", "Ville", "Essence 1", "Essence 2",
              "Bénévolat entretien", "Arbre affecté", "Agent", "Validé le", "Imprimé le", "Remis le", "Motif", "Notes"],
             [(r["ref"], r["created_at"], r["camp"], r["statut"], r["enfant_prenom"], r["enfant_nom"], r["naissance"], r["lien"],
-              livret_export(r), r["parent_nom"], r["parent_qualite"], r["email"], r["tel"], r["adresse"], r["cp"],
+              r["parent_nom"], r["parent_qualite"], r["email"], r["tel"], r["adresse"], r["cp"],
               r["ville"], r["e1"], r["e2"], "Oui" if r["benevolat"] else "Non", r["code"], r["agent"], r["valide_at"],
               r["imprime_at"], r["remis_at"], r["motif"], r["notes"]) for r in q(
                 "SELECT p.*, c.nom camp, e1.nom e1, e2.nom e2, a.code FROM parrainages p LEFT JOIN campagnes c ON c.id=p.campagne_id "
@@ -1698,8 +1561,6 @@ def export_xlsx():
 
 # ---------------------------------------------------------------- démarrage
 init_db(demo=os.environ.get("DEMO", "0") == "1")
-with app.app_context():
-    purger_livrets()
 
 if __name__ == "__main__":
     app.run(host="127.0.0.1", port=int(os.environ.get("PORT", 5000)), debug=os.environ.get("DEBUG", "0") == "1")

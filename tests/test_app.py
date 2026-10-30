@@ -36,7 +36,6 @@ def _hors_ligne(*a, **k):
 
 
 certificat.requests.get = _hors_ligne  # pas d'accès réseau pendant les tests : la carte utilise son fond de secours
-PDF = (b"%PDF-1.4\n%test\n", "livret.pdf")
 FICHIER_PLAN = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "donnees", "plantation-automne-2026.json")
 MDP = "motdepasse-test-1"
 
@@ -64,8 +63,6 @@ class Base(unittest.TestCase):
                         (f"COR-2026-{n:03d}", 1, ess, "Square test", "Rue test", 45.6706 + n * 0.0001, 4.8960, 2026))
         con.commit()
         con.close()
-        for f in os.listdir(app.LIVRETS):
-            os.remove(os.path.join(app.LIVRETS, f))
         for f in os.listdir(app.PHOTOS_ENVOYEES):
             os.remove(os.path.join(app.PHOTOS_ENVOYEES, f))
         self.pub = app.app.test_client()
@@ -92,11 +89,8 @@ class Base(unittest.TestCase):
         d.update(kw)
         return {k: v for k, v in d.items() if v is not None}
 
-    def envoyer(self, fichier=PDF, client=None, **kw):
-        d = self.donnees(**kw)
-        if fichier is not None:
-            d["livret"] = (io.BytesIO(fichier[0]), fichier[1])
-        return (client or self.pub).post("/demande", data=d, content_type="multipart/form-data")
+    def envoyer(self, client=None, **kw):
+        return (client or self.pub).post("/demande", data=self.donnees(**kw))
 
     def cree(self, **kw):
         r = self.envoyer(**kw)
@@ -136,8 +130,6 @@ class TestFormulairePublic(Base):
         self.assertIn("/merci/", r.headers["Location"])
         p = self.un("SELECT * FROM parrainages")
         self.assertEqual((p["ref"], p["statut"], p["enfant_prenom"], p["essence2_id"]), (f"PAR-{app.aujourdhui().year}-0001", "Reçue", "Léa", 2))
-        self.assertTrue(p["livret"].endswith(".pdf"))
-        self.assertTrue(os.path.exists(os.path.join(app.LIVRETS, p["livret"])))
         sujets = [m["sujet"] for m in self.sql("SELECT sujet FROM mails")]
         self.assertTrue(any("Bienvenue à Léa" in s for s in sujets))
         self.assertEqual(len([s for s in sujets if s.startswith("Nouvelle demande")]), 2)  # un courrier par compte
@@ -161,7 +153,8 @@ class TestFormulairePublic(Base):
         h = self.pub.get("/merci/" + app._jeton.dumps(ref)).get_data(as_text=True)
         self.assertIn("<strong>maintenant</strong>", h)
         self.assertIn(ref, h)
-        self.assertIn("original du livret de famille", h)
+        self.assertIn("justificatif de domicile", h)
+        self.assertNotIn("livret", h)
         self.assertNotIn("liste d'attente", h)
         self.sql("UPDATE parrainages SET statut=\"Liste d'attente\"")
         self.assertIn("Vous êtes sur liste d'attente", self.pub.get("/merci/" + app._jeton.dumps(ref)).get_data(as_text=True))
@@ -245,21 +238,39 @@ class TestFormulairePublic(Base):
         self.assertEqual(app.soigner_prenom("Jean-Pierre"), "Jean-Pierre")
         self.assertEqual(app.soigner_prenom("McKenzie"), "McKenzie")  # saisie mixte : respectée
 
-    def test_livret(self):
-        self.assertEqual(self.envoyer(fichier=None).status_code, 400)
-        self.assertEqual(self.envoyer(fichier=(b"juste du texte", "livret.pdf")).status_code, 400)  # contenu non reconnu malgré l'extension
-        self.assertEqual(self.envoyer(fichier=(b"", "vide.pdf")).status_code, 400)
-        self.assertEqual(self.envoyer(fichier=(b"%PDF" + b"0" * (5 * 1024 * 1024), "gros.pdf")).status_code, 400)
-        self.assertEqual(self.envoyer(fichier=(b"%PDF" + b"0" * (6 * 1024 * 1024), "enorme.pdf")).status_code, 413)
-        self.assertEqual(os.listdir(app.LIVRETS), [])  # aucun fichier orphelin après les refus
-        for contenu, ext in ((bytes([0xFF, 0xD8, 0xFF, 0xE0]) + b"0" * 20, ".jpg"), (bytes([0x89, 0x50, 0x4E, 0x47]) + b"0" * 20, ".png")):
-            app._essais.clear()
-            self.cree(fichier=(contenu, "photo.bin"), enfant_prenom="Img" + ext.strip("."))
-            self.assertTrue(self.un("SELECT livret FROM parrainages ORDER BY id DESC")["livret"].endswith(ext))
+    def test_aucun_livret_a_deposer(self):
+        # l'état civil vérifie la naissance avec ses propres outils : le formulaire ne reçoit aucun document
+        h = self.pub.get("/").get_data(as_text=True)
+        self.assertNotIn('type="file"', h)
+        self.assertNotIn("multipart", h)
+        self.assertNotIn("livret", h.lower())
+        self.assertIn("services de l'état civil", h)
+        colonnes = {r["name"] for r in self.sql("PRAGMA table_info(parrainages)")}
+        self.assertFalse({"livret", "livret_supprime_at"} & colonnes)
+        # un navigateur resté sur l'ancienne page peut encore joindre un fichier : il est ignoré, rien n'est écrit sur le disque
+        r = self.pub.post("/demande", data=dict(self.donnees(), livret=(io.BytesIO(b"%PDF-1.4\n%test\n"), "livret.pdf")),
+                          content_type="multipart/form-data")
+        self.assertEqual(r.status_code, 302)
+        self.assertFalse(os.path.exists(os.path.join(app.DATA, "livrets")))
 
-    def test_aucun_fichier_orphelin_si_refus(self):
+    def test_ancien_circuit_du_livret_supprime(self):
+        pid = self.cree()
+        c = self.connecte()
+        self.assertEqual(c.get(f"/admin/demande/{pid}/livret").status_code, 404)
+        for action in ("supprimer_livret", "restaurer_livret"):
+            self.assertEqual(c.post(f"/admin/demande/{pid}/action", data=dict(csrf=self.jeton(c), action=action)).status_code, 400)
+        h = c.get(f"/admin/demande/{pid}").get_data(as_text=True)
+        self.assertNotIn("livret", h.lower())
+        self.assertIn("état civil", h)
+        self.assertNotIn("livret", c.get("/admin/").get_data(as_text=True).lower())
+        self.agir(c, pid, "valider", arbre_id=self.un("SELECT id FROM arbres WHERE code='COR-2026-001'")["id"])
+        mails = " ".join(m["corps"] for m in self.sql("SELECT corps FROM mails"))
+        self.assertIn("justificatif de domicile", mails)
+        self.assertNotIn("livret", mails.lower())
+
+    def test_refus_de_la_demande_sans_effet_de_bord(self):
         self.assertEqual(self.envoyer(attest=None).status_code, 400)
-        self.assertEqual(os.listdir(app.LIVRETS), [])
+        self.assertEqual(self.un("SELECT COUNT(*) n FROM parrainages")["n"], 0)
 
     def test_doublon_et_jumeaux(self):
         self.cree()
@@ -818,9 +829,7 @@ class TestSousChemin(Base):
         return r
 
     def demande(self):
-        d = self.donnees()
-        d["livret"] = (io.BytesIO(PDF[0]), PDF[1])
-        return self.vue.post("/demande", data=d)
+        return self.vue.post("/demande", data=self.donnees())
 
     def test_prefixe_normalise_et_cookie_propre(self):
         for saisi, attendu in (("", ""), (None, ""), ("monarbre", "/monarbre"), ("/monarbre/", "/monarbre"), ("  /a/b/ ", "/a/b"), ("/", "")):
@@ -1059,14 +1068,6 @@ class TestTraitement(Base):
         self.assertLess(tous.index("Carole"), tous.index("Alice"))  # liste générale : la plus récente en premier
         self.assertIn("Effacer les filtres", h)
         self.assertNotIn("Effacer les filtres", self.c.get("/admin/").get_data(as_text=True))
-        # copies de livret à supprimer : validée, copie encore présente
-        h = self.c.get("/admin/?livret=1").get_data(as_text=True)
-        self.assertIn("Bruno", h)
-        self.assertNotIn("Alice", h)
-        self.assertIn("copies de livret à supprimer", self.c.get("/admin/").get_data(as_text=True))
-        self.agir(self.c, 2, "supprimer_livret")
-        self.assertNotIn("copies de livret à supprimer", self.c.get("/admin/").get_data(as_text=True))
-        self.assertIn("0 demande", self.c.get("/admin/?livret=1").get_data(as_text=True))
 
     def test_arbre_preselectionne_et_alerte(self):
         self.cree()
@@ -1142,31 +1143,28 @@ class TestTraitement(Base):
         self.cree(enfant_prenom="Zoé")
         # complément : motif obligatoire, courrier envoyé, l'agent peut ensuite valider
         self.assertIn("Précisez", self.agir(self.c, 1, "complement", motif=""))
-        self.agir(self.c, 1, "complement", motif="Page du livret illisible")
+        self.agir(self.c, 1, "complement", motif="Adresse illisible")
         self.assertEqual(self.statut(1), "Complément demandé")
         self.assertTrue(self.sql("SELECT 1 FROM mails WHERE corps LIKE '%illisible%'"))
-        # refus : motif obligatoire, arbre libéré, copie du livret en corbeille
+        # refus : motif obligatoire, arbre libéré
         self.assertIn("motif du refus est obligatoire", self.agir(self.c, 2, "refuser", motif=" "))
         self.agir(self.c, 2, "valider", arbre_id=self.arbre("COR-2026-002")["id"])
         self.agir(self.c, 2, "refuser", motif="Enfant non domicilié")
         p = self.un("SELECT * FROM parrainages WHERE id=2")
         self.assertEqual((p["statut"], p["arbre_id"], p["motif"]), ("Refusée", None, "Enfant non domicilié"))
         self.assertEqual(self.arbre("COR-2026-002")["statut"], "libre")
-        self.assertIsNotNone(p["livret_supprime_at"])
-        self.assertTrue(os.path.exists(os.path.join(app.LIVRETS, p["livret"])))  # récupérable 6 mois
         # liste d'attente depuis « Validée » : l'arbre revient en stock
         self.agir(self.c, 3, "valider", arbre_id=self.arbre("COR-2026-003")["id"])
         self.agir(self.c, 3, "attente")
         p = self.un("SELECT * FROM parrainages WHERE id=3")
         self.assertEqual((p["statut"], p["arbre_id"], p["valide_at"]), ("Liste d'attente", None, None))
         self.assertEqual(self.arbre("COR-2026-003")["statut"], "libre")
-        # annulation : arbre libéré + livret en corbeille
+        # annulation : arbre libéré
         self.agir(self.c, 3, "valider", arbre_id=self.arbre("COR-2026-003")["id"])
         self.agir(self.c, 3, "annuler")
         p = self.un("SELECT * FROM parrainages WHERE id=3")
         self.assertEqual((p["statut"], p["arbre_id"]), ("Annulée", None))
         self.assertEqual(self.arbre("COR-2026-003")["statut"], "libre")
-        self.assertIsNotNone(p["livret_supprime_at"])
         self.assertIn("clôturée", self.c.get("/admin/demande/3").get_data(as_text=True))
 
     def test_liste_attente_servie_par_une_autre_campagne(self):
@@ -1288,67 +1286,13 @@ class TestTraitement(Base):
             certificat._fetch_tile(1, 2, dossier)  # hors ligne : la tuile tronquée est supprimée puis le téléchargement échoue
         self.assertFalse(os.path.exists(chemin))
 
-    def test_livret_corbeille_et_restauration(self):
-        self.cree()
-        ag = self.connecte("agent@test.local")
-        self.assertEqual(ag.get("/admin/demande/1/livret").status_code, 200)
-        self.assertEqual(ag.get("/admin/demande/1/livret").headers["Cache-Control"], "no-store")
-        self.assertIn("Copie du livret supprimée", self.agir(ag, 1, "supprimer_livret"))
-        self.assertEqual(ag.get("/admin/demande/1/livret").status_code, 403)  # l'agent n'y a plus accès
-        self.assertEqual(self.c.get("/admin/demande/1/livret").status_code, 200)  # l'administrateur, si
-        t1 = self.un("SELECT livret_supprime_at FROM parrainages")["livret_supprime_at"]
-        self.agir(ag, 1, "supprimer_livret")  # un second clic ne repousse pas l'échéance
-        self.assertEqual(self.un("SELECT livret_supprime_at FROM parrainages")["livret_supprime_at"], t1)
-        self.agir(ag, 1, "restaurer_livret")  # réservé à l'administrateur
-        self.assertIsNotNone(self.un("SELECT livret_supprime_at FROM parrainages")["livret_supprime_at"])
-        self.assertIn("restaurée", self.agir(self.c, 1, "restaurer_livret"))
-        self.assertIsNone(self.un("SELECT livret_supprime_at FROM parrainages")["livret_supprime_at"])
-        self.assertEqual(ag.get("/admin/demande/1/livret").status_code, 200)
-
-    def test_purge_apres_six_mois(self):
-        self.cree()
-        self.cree(enfant_prenom="Hugo")
-        fichier = lambda i: os.path.join(app.LIVRETS, self.un("SELECT livret FROM parrainages WHERE id=?", i)["livret"])
-        f1, f2 = fichier(1), fichier(2)
-        vieux = (app.maintenant() - timedelta(days=app.CONSERVATION_JOURS + 1)).strftime("%Y-%m-%d %H:%M:%S")
-        recent = (app.maintenant() - timedelta(days=app.CONSERVATION_JOURS - 2)).strftime("%Y-%m-%d %H:%M:%S")
-        self.sql("UPDATE parrainages SET livret_supprime_at=? WHERE id=1", vieux)
-        self.sql("UPDATE parrainages SET livret_supprime_at=? WHERE id=2", recent)
-        with app.app.app_context():
-            app.purger_livrets()
-        self.assertFalse(os.path.exists(f1))
-        self.assertTrue(os.path.exists(f2))
-        self.assertIsNone(self.un("SELECT livret FROM parrainages WHERE id=1")["livret"])
-        self.assertIsNotNone(self.un("SELECT livret_supprime_at FROM parrainages WHERE id=1")["livret_supprime_at"])
-        self.assertIn("effacée définitivement", self.c.get("/admin/demande/1").get_data(as_text=True))
-        self.assertIn("Il n'y a plus de copie", self.agir(self.c, 1, "restaurer_livret"))
-        self.assertEqual(self.c.get("/admin/demande/1/livret").status_code, 404)
-
-    def test_purge_tolerante_aux_fichiers_verrouilles(self):
-        self.cree()
-        self.sql("UPDATE parrainages SET livret_supprime_at=?", (app.maintenant() - timedelta(days=400)).strftime("%Y-%m-%d %H:%M:%S"))
-        vrai = os.remove
-        os.remove = lambda *a: (_ for _ in ()).throw(PermissionError("verrouillé"))
-        try:
-            with app.app.app_context():
-                app.purger_livrets()  # ne plante pas
-        finally:
-            os.remove = vrai
-        self.assertIsNotNone(self.un("SELECT livret FROM parrainages")["livret"])  # référence conservée : nouvel essai à la prochaine purge
-        with app.app.app_context():
-            app.purger_livrets()
-        self.assertIsNone(self.un("SELECT livret FROM parrainages")["livret"])
-
     def test_anonymisation(self):
         self.cree()
         self.cree(enfant_prenom="Hugo", enfant_nom="Durand", parent_nom="Paul Durand", email="paul@example.org", email2="paul@example.org")
         self.agir(self.c, 1, "valider", arbre_id=self.arbre("COR-2026-001")["id"])
-        f1 = os.path.join(app.LIVRETS, self.un("SELECT livret FROM parrainages WHERE id=1")["livret"])
         self.assertIn("Données personnelles effacées", self.agir(self.c, 1, "anonymiser"))
         p = self.un("SELECT * FROM parrainages WHERE id=1")
         self.assertEqual((p["enfant_nom"], p["email"], p["tel"], p["adresse"], p["parent_nom"], p["anonymise"]), ("", "", "", "", "(anonymisé)", 1))
-        self.assertIsNone(p["livret"])
-        self.assertFalse(os.path.exists(f1))
         self.assertEqual(p["arbre_id"], self.arbre("COR-2026-001")["id"])  # la fiche de l'arbre est conservée
         tous = " ".join(f"{m['destinataire']} {m['sujet']} {m['corps']}" for m in self.sql("SELECT * FROM mails"))
         self.assertNotIn("julie@example.org", tous)
@@ -1378,7 +1322,8 @@ class TestTraitement(Base):
         ws = wb["Parrainages"]
         self.assertEqual(ws["E2"].value, "=1+1")
         self.assertEqual(ws["E2"].data_type, "s")
-        self.assertEqual(ws["T2"].value, "COR-2026-001")
+        self.assertEqual(ws["S2"].value, "COR-2026-001")
+        self.assertNotIn("Copie du livret", [c.value for c in ws[1]])
         self.assertEqual(wb["Arbres"].max_row, 7)
         self.assertEqual([c.value for c in wb["Arbres"][1]][3:6], ["Nom latin", "Variété", "Taille"])
         self.assertEqual(wb["Arbres"]["N2"].value, ws["A2"].value)

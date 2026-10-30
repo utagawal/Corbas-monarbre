@@ -2,7 +2,7 @@
 {% block title %}Utilisateurs{% endblock %}
 {% block body %}
 <h1>Utilisateurs du back-office</h1>
-<p class="chapo"><b>Agent</b> : traite les demandes, imprime les certificats, consulte les courriers et exporte les données. <b>Administrateur</b> : fait aussi tout le paramétrage (campagnes, essences, arbres, utilisateurs), restaure les copies de livret et anonymise les fiches.</p>
+<p class="chapo"><b>Agent</b> : traite les demandes, imprime les certificats, consulte les courriers et exporte les données. <b>Administrateur</b> : fait aussi tout le paramétrage (campagnes, essences, arbres, utilisateurs), anonymise les fiches.</p>
 <div class="tbl"><table>
 <tr><th>Adresse e-mail</th><th>Rôle</th><th>Nouveau mot de passe</th><th></th></tr>
 {% for u in rows %}<tr><td>{{ u.email }}{% if u.id == session.uid %} <small>(vous)</small>{% endif %}</td><td>{{ 'Administrateur' if u.role == 'admin' else 'Agent' }}</td>

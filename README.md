@@ -94,7 +94,7 @@ docker compose up -d --build app
 server {
     listen 80;
     server_name monarbre.ville-corbas.fr;
-    client_max_body_size 6m;                         # copie du livret de famille : 5 Mo maximum
+    client_max_body_size 6m;                         # photos envoyées depuis l'administration : 5 Mo maximum
 
     location / {
         proxy_pass http://127.0.0.1:8010;
@@ -116,7 +116,7 @@ location = /monarbre { return 301 /monarbre/; }
 
 location ^~ /monarbre/ {
     proxy_pass http://127.0.0.1:8010/;   # la barre finale retire /monarbre avant de transmettre
-    client_max_body_size 6m;             # copie du livret de famille : 5 Mo maximum
+    client_max_body_size 6m;             # photos envoyées depuis l'administration : 5 Mo maximum
     proxy_set_header Host $host;
     proxy_set_header X-Forwarded-For $remote_addr;
     proxy_set_header X-Forwarded-Proto https;
@@ -152,21 +152,19 @@ docker compose up -d --build        # méthode A
 docker compose up -d --build app    # méthode B
 ```
 
-Les données sont dans un volume Docker : elles sont conservées. Pour arrêter : `docker compose down` (sans `-v`, qui effacerait le volume).
+Les données sont dans un volume Docker : elles sont conservées. Si des copies de livret de famille ont été déposées pendant les essais (le formulaire n'en demande plus), effacez-les : voir [anciennes copies de livret](docs/fonctionnement.md#anciennes-copies-de-livret-de-famille). Pour arrêter : `docker compose down` (sans `-v`, qui effacerait le volume).
 
 ### Sauvegarder
 
-Tout est dans le volume Docker monté sur `/data` : base `parrainage.db`, copies des livrets de famille (`livrets/`), clé secrète (`secret.key`), photos envoyées. La base est en mode WAL : ne copiez pas le fichier `.db` seul pendant que l'application tourne, utilisez la sauvegarde SQLite ci-dessous.
+Tout est dans le volume Docker monté sur `/data` : base `parrainage.db`, clé secrète (`secret.key`), photos envoyées. La base est en mode WAL : ne copiez pas le fichier `.db` seul pendant que l'application tourne, utilisez la sauvegarde SQLite ci-dessous.
 
 ```bash
 mkdir -p sauvegardes
 docker compose exec -T app python -c "import sqlite3;s=sqlite3.connect('/data/parrainage.db');d=sqlite3.connect('/data/sauvegarde.db');s.backup(d)"
 docker compose cp app:/data/sauvegarde.db ./sauvegardes/parrainage-$(date +%F).db
-docker compose exec -T app tar -C /data -czf - livrets > ./sauvegardes/livrets-$(date +%F).tar.gz
-find ./sauvegardes -name 'livrets-*.tar.gz' -mtime +180 -delete     # copies de livrets : 6 mois de conservation au plus
 ```
 
-À lancer chaque nuit (cron), avec un export Excel régulier : les données doivent être conservées pendant la vie de l'arbre. Seules les archives de livrets sont purgées au bout de 6 mois (voir [données personnelles](docs/fonctionnement.md#données-personnelles)).
+À lancer chaque nuit (cron), avec un export Excel régulier : les données doivent être conservées pendant la vie de l'arbre.
 
 ## Intégration dans WordPress
 
