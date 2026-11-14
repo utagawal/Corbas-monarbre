@@ -744,6 +744,16 @@ class TestPhotosAdmin(Base):
 
     def test_remplacer_les_photos_d_ambiance(self):
         from PIL import Image
+        # la photo livrée et sa mention viennent d'un dossier d'essai : le test ne dépend pas des photos réellement fournies
+        ancien, dossier = app.PHOTOS, os.path.join(app.DATA, "ambiance-remplacement")
+        os.makedirs(dossier, exist_ok=True)
+        with open(os.path.join(dossier, "hero-accueil.jpg"), "wb") as fh:
+            fh.write(self.png())
+        with open(os.path.join(dossier, "credits.json"), "w", encoding="utf-8") as fh:
+            json.dump({"hero-accueil": {"photo": "Allée de test", "auteur": "Auteur de test", "licence": "CC BY 4.0",
+                                        "licence_url": "https://creativecommons.org/licenses/by/4.0/", "source": "https://commons.wikimedia.org/wiki/File:Test.jpg"}}, fh)
+        app.PHOTOS = dossier
+        self.addCleanup(setattr, app, "PHOTOS", ancien)
         agent = self.connecte("agent@test.local")
         self.assertEqual(agent.get("/admin/photos").status_code, 403)
         c = self.connecte()
@@ -754,7 +764,7 @@ class TestPhotosAdmin(Base):
         # au départ : la photo livrée avec l'application, avec sa mention de crédit
         accueil = self.pub.get("/").get_data(as_text=True)
         self.assertIn('class="hero-photo" src="/static/photos/hero-accueil.jpg"', accueil)
-        self.assertIn("Zinneke", accueil)
+        self.assertIn("Auteur de test", accueil)
         # remplacement : recadrée en 1200 x 400 ; la mention de l'ancienne photo disparaît
         self.assertIn("Photo remplacée", self.poster(c, "/admin/photos", nom="hero-accueil", photo=(io.BytesIO(self.png()), "maison.png")))
         with Image.open(os.path.join(app.PHOTOS_ENVOYEES, "hero-accueil.jpg")) as img:  # fermée aussitôt (Windows)
@@ -762,7 +772,7 @@ class TestPhotosAdmin(Base):
         self.assertEqual((format_, taille), ("JPEG", (1200, 400)))
         accueil = self.pub.get("/").get_data(as_text=True)
         self.assertRegex(accueil, r'class="hero-photo" src="/photos/hero-accueil\.jpg\?v=\d+"')
-        self.assertNotIn("Zinneke", accueil)
+        self.assertNotIn("Auteur de test", accueil)
         r = self.pub.get("/photos/hero-accueil.jpg")
         self.assertEqual((r.status_code, r.mimetype), (200, "image/jpeg"))
         self.assertIn("Photo envoyée par la mairie", c.get("/admin/photos").get_data(as_text=True))
@@ -786,7 +796,7 @@ class TestPhotosAdmin(Base):
         self.assertFalse(os.path.exists(os.path.join(app.PHOTOS_ENVOYEES, "hero-accueil.jpg")))
         accueil = self.pub.get("/").get_data(as_text=True)
         self.assertIn('src="/static/photos/hero-accueil.jpg"', accueil)
-        self.assertIn("Zinneke", accueil)
+        self.assertIn("Auteur de test", accueil)
 
     def test_mentions_des_photos_d_essences_livrees(self):
         # une essence qui a une photo livrée affiche sa mention ; une photo envoyée par la mairie n'en a pas

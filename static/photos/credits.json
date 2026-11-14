@@ -1,18 +1,4 @@
 {
- "hero-accueil": {
-  "photo": "Allée de tilleuls à Esch-sur-Sûre",
-  "auteur": "Zinneke",
-  "licence": "CC BY-SA 3.0",
-  "licence_url": "https://creativecommons.org/licenses/by-sa/3.0/",
-  "source": "https://commons.wikimedia.org/wiki/File:Esch-sur-S%C3%BBre_-_Lime_tree_alley_leading_to_Chapelle_de_l%27Exaltation-de-la-Sainte-Croix_2020-08_--001.jpg"
- },
- "hero-merci": {
-  "photo": "Cerisiers en fleurs, High Park",
-  "auteur": "Fabian Roudra Baroi",
-  "licence": "CC BY-SA 4.0",
-  "licence_url": "https://creativecommons.org/licenses/by-sa/4.0/",
-  "source": "https://commons.wikimedia.org/wiki/File:Cherry_Blossom_in_High_Park_68.jpg"
- },
  "essences/chene-vert": {
   "photo": "Chêne vert, Montes de Vitoria",
   "auteur": "Basotxerri",
