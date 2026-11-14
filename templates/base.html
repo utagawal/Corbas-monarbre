@@ -11,7 +11,7 @@
 <body>
 {% if logo_present %}<div class="wrap entete-ville"><a href="{{ MAIRIE.site }}"><img class="logo-ville" src="{{ url_for('logo') }}" alt="{{ MAIRIE.nom }}"></a></div>{% endif %}
 {% block body %}{% endblock %}
-{% set credits = credits_photos() %}{% if credits %}<footer class="wrap credits"><details><summary>Crédits photos</summary><ul>{% for c in credits %}<li>{{ c.photo }} : {{ c.auteur }}, <a href="{{ c.licence_url }}" target="_blank" rel="noopener">{{ c.licence }}</a>, <a href="{{ c.source }}" target="_blank" rel="noopener">Wikimedia Commons</a> (photo recadrée)</li>{% endfor %}</ul></details></footer>{% endif %}
+{% set credits = credits_photos() %}{% if credits %}<footer class="wrap credits"><details><summary>Crédits photos</summary><ul>{% for c in credits %}<li>{{ c.photo }} : {{ c.auteur }}{% if c.licence %}, {% if c.licence_url %}<a href="{{ c.licence_url }}" target="_blank" rel="noopener">{{ c.licence }}</a>{% else %}{{ c.licence }}{% endif %}{% endif %}{% if c.source %}, <a href="{{ c.source }}" target="_blank" rel="noopener">Wikimedia Commons</a>{% endif %} (photo recadrée)</li>{% endfor %}</ul></details></footer>{% endif %}
 <script>
 /* Hauteur automatique quand la page est affichée dans une iframe (page WordPress).
    On mesure le contenu (body) et non le document : la hauteur du document ne descend jamais sous celle de l'iframe,

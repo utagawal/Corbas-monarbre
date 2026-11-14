@@ -1,4 +1,12 @@
 {
+ "hero-accueil": {
+  "photo": "Un parc de Corbas",
+  "auteur": "Ville de Corbas"
+ },
+ "hero-merci": {
+  "photo": "L'hôtel de ville de Corbas",
+  "auteur": "Ville de Corbas"
+ },
  "essences/chene-vert": {
   "photo": "Chêne vert, Montes de Vitoria",
   "auteur": "Basotxerri",

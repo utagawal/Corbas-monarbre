@@ -813,6 +813,13 @@ class TestPhotosAdmin(Base):
         self.assertIn('src="/static/photos/hero-accueil.jpg"', accueil)
         self.assertIn("Auteur de test", accueil)
 
+    def test_credit_ville_de_corbas_sur_les_bandeaux(self):
+        # les photos de la commune sont créditées « Ville de Corbas », sans licence ni lien vers Wikimedia
+        accueil = html.unescape(self.pub.get("/").get_data(as_text=True))
+        self.assertIn("<li>Un parc de Corbas : Ville de Corbas (photo recadrée)</li>", accueil)
+        merci = html.unescape(self.pub.get(self.envoyer().headers["Location"]).get_data(as_text=True))
+        self.assertIn("<li>L'hôtel de ville de Corbas : Ville de Corbas (photo recadrée)</li>", merci)
+
     def test_mentions_des_photos_d_essences_livrees(self):
         # une essence qui a une photo livrée affiche sa mention ; une photo envoyée par la mairie n'en a pas
         self.sql("UPDATE essences SET nom='Chêne vert' WHERE id=1")
