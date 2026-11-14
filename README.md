@@ -146,11 +146,24 @@ docker compose logs -f app         # journaux (mot de passe généré, erreurs d
 
 ### Mettre à jour
 
+Le script `deploy/mettre-a-jour.sh`, à lancer depuis le serveur, fait tout (méthodes A et B) :
+
 ```bash
-git pull
-docker compose up -d --build        # méthode A
-docker compose up -d --build app    # méthode B
+./deploy/mettre-a-jour.sh --verifier   # ce qui est disponible, sans rien changer
+./deploy/mettre-a-jour.sh              # met à jour
 ```
+
+Il sauvegarde la base (`sauvegardes/avant-maj-*.db`, les 5 dernières sont gardées), récupère le code (`git pull`), reconstruit l'image, redémarre l'application puis vérifie qu'elle répond (`/sante`). Si la nouvelle version ne répond pas au bout de 90 secondes, il **remet automatiquement la précédente** (code et image) et se termine en erreur. Il refuse de s'exécuter si des fichiers du projet ont été modifiés à la main et ne lance jamais deux mises à jour à la fois.
+
+Ce qui est mis à jour : le code, l'image Python de base avec ses correctifs système, et les paquets Python aux versions fixées dans `requirements.txt` (celles qui ont été testées). Pour adopter une nouvelle version d'un paquet, on la change dans `requirements.txt` (dépôt) après essai : `--verifier` indique ce qui existe. `--forcer` reconstruit même sans nouveau code, pour récupérer les correctifs de l'image de base. Réglages facultatifs : voir `./deploy/mettre-a-jour.sh --aide`.
+
+**Automatiquement**, par exemple chaque lundi à 4 h 30, dans la crontab de l'utilisateur qui lance Docker (`crontab -e`, ou `sudo crontab -e` pour root) :
+
+```
+30 4 * * 1  /var/data/monarbre/deploy/mettre-a-jour.sh >> /var/log/monarbre-maj.log 2>&1
+```
+
+Attention : le serveur applique alors tout ce qui est sur la branche `main` du dépôt GitHub. Pour garder la main, planifiez plutôt `--verifier` et lancez la mise à jour vous-même.
 
 Les données sont dans un volume Docker : elles sont conservées. Si des copies de livret de famille ont été déposées pendant les essais (le formulaire n'en demande plus), effacez-les : voir [anciennes copies de livret](docs/fonctionnement.md#anciennes-copies-de-livret-de-famille). Pour arrêter : `docker compose down` (sans `-v`, qui effacerait le volume).
 
@@ -164,7 +177,7 @@ docker compose exec -T app python -c "import sqlite3;s=sqlite3.connect('/data/pa
 docker compose cp app:/data/sauvegarde.db ./sauvegardes/parrainage-$(date +%F).db
 ```
 
-À lancer chaque nuit (cron), avec un export Excel régulier : les données doivent être conservées pendant la vie de l'arbre.
+À lancer chaque nuit (cron), avec un export Excel régulier : les données doivent être conservées pendant la vie de l'arbre. Le dossier `sauvegardes/` contient des données personnelles : il est ignoré par git et par Docker, et le script de mise à jour le réserve à son propriétaire.
 
 ## Intégration dans WordPress
 
