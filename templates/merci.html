@@ -20,11 +20,11 @@
   <li><b>Nos services étudient votre demande</b> et choisissent l'arbre de {{ p.enfant_prenom }}.</li>
   <li><b>Vous recevez un second e-mail</b> dès que le certificat est prêt.</li>
   {% endif %}
-  <li><b>Vous retirez le certificat à l'accueil de la mairie.</b><br>{{ MAIRIE.adresse }}<br>{{ MAIRIE.horaires|capitalize }}<br>
+  <li><b>Vous retirez le certificat à l'accueil de la mairie.</b><br>{{ MAIRIE.adresse }}<br>Accueil : <a href="tel:{{ MAIRIE.tel|replace(' ', '') }}">{{ MAIRIE.tel }}</a><br>
     Apportez <b>un justificatif de domicile</b>.</li>
 </ol>
 
-<p>Une question ? <a href="mailto:{{ MAIRIE.contact }}">{{ MAIRIE.contact }}</a></p>
+<p>Une question ? Rendez-vous sur le site de la ville : <a href="{{ MAIRIE.site }}" target="_blank" rel="noopener">{{ MAIRIE.site|replace('https://', '')|replace('http://', '')|trim('/') }}</a></p>
 <hr style="border:0;border-top:1px solid var(--bord);margin:20px 0">
 <p><b>Jumeaux ou autre enfant ?</b> Chaque enfant a son propre arbre : faites une demande par enfant.</p>
 <p><a class="btn sec" href="{{ url_for('formulaire', autre=1) }}">Faire une demande pour un autre enfant</a>

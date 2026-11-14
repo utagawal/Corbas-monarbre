@@ -95,7 +95,7 @@ Bouton : **Envoyer ma demande**
 
 ### Principes d'interaction retenus
 
-*Revue UX/UI (octobre 2026) :* encadré « Avant de commencer » (date de naissance, e-mail) affiché à la première étape seulement ; barre de progression étiquetée (Enfant, Vous, Essence, Envoi) ; contrôle des e-mails et du code postal dès la sortie du champ ; sélecteur de date qui grise les dates de plus de 12 mois ; pastille de sélection visible sur les cartes d'essence (pas seulement la couleur) ; page de confirmation en quatre étapes (« Et maintenant ? ») avec adresse et horaires de la mairie ; fond transparent dans l'iframe ; focus clavier bleu contrasté (6,4:1), textes secondaires à plus de 4,5:1 ; côté agents, compteurs cliquables, file d'attente triée du plus ancien au plus récent, arbre du premier choix pré-sélectionné, lien « Aller au contenu », courriers repliables.
+*Revue UX/UI (octobre 2026) :* encadré « Avant de commencer » (date de naissance, e-mail) affiché à la première étape seulement ; barre de progression étiquetée (Enfant, Vous, Essence, Envoi) ; contrôle des e-mails et du code postal dès la sortie du champ ; sélecteur de date qui grise les dates de plus de 12 mois ; pastille de sélection visible sur les cartes d'essence (pas seulement la couleur) ; page de confirmation en quatre étapes (« Et maintenant ? ») avec adresse et téléphone de l'accueil de la mairie (sans horaires) ; fond transparent dans l'iframe ; focus clavier bleu contrasté (6,4:1), textes secondaires à plus de 4,5:1 ; côté agents, compteurs cliquables, file d'attente triée du plus ancien au plus récent, arbre du premier choix pré-sélectionné, lien « Aller au contenu », courriers repliables.
 - Un seul sujet par écran, barre de progression « Étape 2 sur 4 », bouton Retour qui conserve la saisie.
 - Validation au fil de l'eau, messages en clair qui disent quoi faire, jamais « champ invalide ».
 - **Aucune pièce à joindre** : le formulaire ne reçoit aucun fichier (la copie du livret de famille, prévue au départ, a été supprimée : l'état civil vérifie la naissance avec ses outils). Un justificatif de domicile est présenté au retrait du certificat.
@@ -109,7 +109,7 @@ Bouton : **Envoyer ma demande**
 ## 3. Écrans et messages de retour
 
 ### Confirmation à l'écran
-« Merci {prénom du parent} ! Votre demande pour {prénom de l'enfant} est bien enregistrée sous la référence **PAR-2026-0042**. Un e-mail de confirmation vient de vous être envoyé. Les services municipaux étudient votre demande. Vous serez prévenu(e) dès que le certificat sera prêt à la mairie. »
+« Merci {prénom du parent} ! Votre demande pour {prénom de l'enfant} est bien enregistrée sous la référence **PAR-2026-0042**. Un e-mail de confirmation vient de vous être envoyé. Les services municipaux étudient votre demande. Vous serez prévenu(e) dès que le certificat sera prêt à la mairie. » Pour toute question, la page renvoie vers le site de la ville (corbas.fr, réglable par `MAIRIE_SITE`) ; les e-mails, eux, donnent le contact de la mairie.
 
 ### E-mail 1 – Accusé de réception (immédiat, personnalisé)
 **Objet :** Bienvenue à {prénom de l'enfant} : votre demande de parrainage est bien reçue
@@ -126,14 +126,14 @@ Bouton : **Envoyer ma demande**
 > 2. Vous recevrez un nouvel e-mail dès que le certificat de parrainage sera prêt.
 > 3. Vous viendrez le retirer à l'accueil de la mairie. Pensez à apporter un justificatif de domicile.
 >
-> Une question ? {mail/téléphone du service} – {horaires d'accueil}.
+> Une question ? Accueil de la mairie : {téléphone} – {mail du service}.
 > Au plaisir de voir grandir {prénom} et son arbre,
 > La Ville de Corbas
 
 ### E-mail 2 – Certificat prêt (envoyé quand l'agent valide)
 **Objet :** Le certificat de parrainage de {prénom} est prêt
 
-> L'arbre de {prénom} a été choisi : c'est un {essence} ! Son certificat vous attend à l'accueil de la mairie de Corbas, {adresse}, aux horaires suivants : {horaires}. Il est tenu à votre disposition pendant {x} mois. Apportez un justificatif de domicile.
+> L'arbre de {prénom} a été choisi : c'est un {essence} ! Son certificat vous attend à l'accueil de la mairie de Corbas, {adresse} (tél. {téléphone}). Il est tenu à votre disposition pendant {x} mois. Apportez un justificatif de domicile.
 
 ### E-mail 3 – Liste d'attente
 > Toutes les places de la campagne {nom} sont attribuées. Votre demande est placée en liste d'attente (rang {n}). Vous serez prévenu(e) dès que de nouveaux arbres seront plantés.

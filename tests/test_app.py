@@ -155,6 +155,13 @@ class TestFormulairePublic(Base):
         self.assertIn(ref, h)
         self.assertIn("justificatif de domicile", h)
         self.assertNotIn("livret", h)
+        # en cas de question, la page renvoie vers le site de la ville (nouvel onglet : la page peut être dans une iframe)
+        self.assertIn(f'<a href="{app.MAIRIE["site"]}" target="_blank" rel="noopener">corbas.fr</a>', h)
+        self.assertNotIn("mailto:", h)
+        # retrait : adresse et téléphone de l'accueil, jamais d'horaires
+        self.assertIn("Hôtel de Ville, Place Charles Jocteur, 69960 Corbas", h)
+        self.assertIn('Accueil : <a href="tel:0472900300">04 72 90 03 00</a>', h)
+        self.assertNotIn("horaires", h.lower())
         self.assertNotIn("liste d'attente", h)
         self.sql("UPDATE parrainages SET statut=\"Liste d'attente\"")
         self.assertIn("Vous êtes sur liste d'attente", self.pub.get("/merci/" + app._jeton.dumps(ref)).get_data(as_text=True))
@@ -267,6 +274,14 @@ class TestFormulairePublic(Base):
         mails = " ".join(m["corps"] for m in self.sql("SELECT corps FROM mails"))
         self.assertIn("justificatif de domicile", mails)
         self.assertNotIn("livret", mails.lower())
+
+    def test_coordonnees_de_l_accueil_dans_les_courriers(self):
+        pid = self.cree()
+        self.agir(self.connecte(), pid, "valider", arbre_id=self.un("SELECT id FROM arbres WHERE code='COR-2026-001'")["id"])
+        accuse, pret = [m["corps"] for m in self.sql("SELECT corps FROM mails WHERE destinataire='julie@example.org' ORDER BY id")]
+        self.assertIn("Accueil de la mairie : 04 72 90 03 00", accuse)
+        self.assertIn("Hôtel de Ville, Place Charles Jocteur, 69960 Corbas (tél. 04 72 90 03 00)", pret)
+        self.assertNotIn("horaires", (accuse + pret).lower())
 
     def test_refus_de_la_demande_sans_effet_de_bord(self):
         self.assertEqual(self.envoyer(attest=None).status_code, 400)

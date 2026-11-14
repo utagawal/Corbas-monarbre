@@ -93,8 +93,8 @@ app.config.update(SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE="Lax",
 
 MAIRIE = {
     "nom": os.environ.get("MAIRIE_NOM", "Ville de Corbas"),
-    "adresse": os.environ.get("MAIRIE_ADRESSE", "Mairie de Corbas (adresse à compléter)"),
-    "horaires": os.environ.get("MAIRIE_HORAIRES", "horaires d'accueil à compléter"),
+    "adresse": os.environ.get("MAIRIE_ADRESSE", "Hôtel de Ville, Place Charles Jocteur, 69960 Corbas"),
+    "tel": os.environ.get("MAIRIE_TEL", "04 72 90 03 00"),  # accueil de la mairie
     "contact": os.environ.get("MAIRIE_CONTACT", "contact@exemple.fr"),
     "maire": os.environ.get("MAIRIE_MAIRE", "Benoit Eraclas"),
     "site": os.environ.get("MAIRIE_SITE", "https://corbas.fr"),
@@ -574,7 +574,7 @@ def mail_accuse(p, e1, e2, attente=False):
               f"(référence {p['ref']}).\n\n"
               f"Votre choix : {pre}\n\nEt maintenant ?\n{etape}\n"
               f"Le certificat sera à retirer à l'accueil de la mairie ({MAIRIE['adresse']}). Pensez à apporter "
-              f"un justificatif de domicile.\n\nUne question ? {MAIRIE['contact']}"
+              f"un justificatif de domicile.\n\nUne question ? Accueil de la mairie : {MAIRIE['tel']} – {MAIRIE['contact']}"
               f"\n\nAu plaisir de voir grandir {p['enfant_prenom']} et son arbre," + SIGN)
 
 
@@ -1196,7 +1196,7 @@ def valider_demande(p, agent):
     send_mail(p["email"], f"Le certificat de parrainage de {p['enfant_prenom']} est prêt",
               f"Bonjour {p['parent_nom']},\n\nL'arbre de {p['enfant_prenom']} a été choisi : c'est un {ess} !\n"
               f"Son certificat vous attend à l'accueil de la mairie de Corbas, {MAIRIE['adresse']} "
-              f"({MAIRIE['horaires']}). Apportez un justificatif de domicile.{quand}"
+              f"(tél. {MAIRIE['tel']}). Apportez un justificatif de domicile.{quand}"
               f"\n\nRéférence : {p['ref']}" + SIGN)
     flash("Demande validée, arbre affecté, e-mail envoyé à la famille.", "ok")
 
